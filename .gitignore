@@ -1,0 +1,70 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# moi truong ao
+.venv/
+venv/
+env/
+ENV/
+
+# ---------- Test / lint cache ----------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# ---------- IDE ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- Rieng cua du an ----------
+
+# Anh chup luc chay -- sinh lien tuc, khong bao gio commit.
+# LUU Y: anh MAU (template) thi PHAI commit, vi thieu no la bot mu.
+# Vi vay chi ignore thu muc capture, khong ignore *.png chung chung.
+captures/
+screenshots/
+debug/
+*.screenshot.png
+
+# Backup may ao tu `ldconsole backup` -- vai GB moi file.
+*.ldbk
+backups/
+
+# APK keo ve / day len
+*.apk
+*.xapk
+
+# File pull tu may ao
+pulled/
+
+# Log
+*.log
+logs/
+
+# Cau hinh co duong dan may that + proxy/tai khoan.
+# Commit config.example.py lam mau, khong commit ban that.
+config.py
+config.local.py
+.env
+accounts.txt
+proxies.txt
