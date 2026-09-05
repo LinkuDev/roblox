@@ -9,8 +9,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import adbutils
-import cv2
-import numpy as np
 
 from . import cookie as _cookie
 from .console import LDConsole
@@ -478,8 +476,15 @@ class Instance:
 
     # ---------- nhin ----------
 
-    def screenshot(self) -> np.ndarray:
-        """Tra ve anh BGR cho OpenCV."""
+    def screenshot(self) -> "np.ndarray":
+        """Tra ve anh BGR cho OpenCV.
+
+        cv2/numpy nap LUC GOI, khong phai luc import module -- de dong goi exe
+        khong keo theo opencv (~80MB) khi flow chi tap toa do co dinh.
+        """
+        import cv2
+        import numpy as np
+
         pil = self._retry(lambda d: d.screenshot())
         return cv2.cvtColor(np.array(pil.convert("RGB")), cv2.COLOR_RGB2BGR)
 
@@ -490,6 +495,9 @@ class Instance:
         screen: np.ndarray | None = None,
     ) -> tuple[int, int] | None:
         """Tim anh mau tren man hinh, tra ve tam cua vung khop hoac None."""
+        import cv2
+        import numpy as np
+
         tpl = cv2.imread(str(template)) if not isinstance(template, np.ndarray) else template
         if tpl is None:
             raise FileNotFoundError(f"Khong doc duoc anh mau: {template}")

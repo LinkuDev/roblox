@@ -3,20 +3,16 @@ REM ============================================================
 REM Dong goi main.py -> RobloxFarm.exe   (chay tren Windows)
 REM ============================================================
 
-REM B1: EP nang PyInstaller len ban moi. Loi "tuple index out of range" la bug
-REM     cua PyInstaller cu khi disassemble bytecode -- ban 6.x da vá.
-python -m pip install --upgrade --force-reinstall pyinstaller pyinstaller-hooks-contrib
-echo.
-echo --- Phien ban PyInstaller (phai >= 6.0) ---
-pyinstaller --version
-echo.
+pip install pyinstaller
 
-REM B2: Dong goi.
-REM   - KHONG --collect-all adbutils: no keo ca apkutils2 (phan tich APK, minh
-REM     KHONG dung) -- chinh module do lam PyInstaller vo khi quet bytecode.
-REM     Chi lay binary (adb.exe) + data cua adbutils la du de connect/shell/pull.
-REM   - --exclude-module apkutils2/apkutils: chan han khong cho quet.
-REM   - Liet ke tay 7 module ldauto vi ldauto dung lazy import.
+REM YEU CAU: Python >= 3.10.1 (ban 3.10.0 co bug 'dis' lam PyInstaller vo khi
+REM quet PIL). Nang Python truoc khi build.
+REM
+REM Loai cv2/numpy: flow tap theo TOA DO co dinh, chua dung nhan dien anh -> exe
+REM   nhe di ~80MB. (cv2/numpy da chuyen sang lazy import trong instance.py nen
+REM   bo di van chay; khi nao can tap_image() thi cai lai + bo 2 dong exclude.)
+REM   PIL PHAI GIU: adbutils import no o top-level, bo la exe crash luc mo.
+REM Loai apkutils2: adbutils keo vao de phan tich APK, minh khong dung.
 pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --paths examples ^
   --hidden-import roblox_flow ^
@@ -30,6 +26,8 @@ pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --hidden-import adbutils ^
   --collect-binaries adbutils ^
   --collect-data adbutils ^
+  --exclude-module cv2 ^
+  --exclude-module numpy ^
   --exclude-module apkutils2 ^
   --exclude-module apkutils ^
   main.py
