@@ -67,15 +67,26 @@ class Farm:
         )
         return Instance(self.console, info.index)
 
-    def _wait_stopped(self, instance: int | str, timeout: float = 60.0, poll: float = 1.0) -> None:
+    def _wait_stopped(
+        self,
+        instance: int | str,
+        timeout: float = 60.0,
+        poll: float = 1.0,
+        settle: float = 8.0,
+    ) -> None:
         """`quit` tra ve ngay lap tuc, nhung tien trinh VBox con song them vai giay.
 
         Copy trong khoang do van dinh o dia dang mo -> phai doi that su tat.
+
+        pid bien mat khoi list2 VAN CHUA du: VBox con giu file handle them vai
+        giay sau do, va `ldconsole copy` trong khoang ay that bai voi rc=2 ma
+        khong in ly do gi. Vi vay cho them `settle` giay nua.
         """
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             info = self.console.find(instance)
             if info is None or not info.running:
+                time.sleep(settle)
                 return
             time.sleep(poll)
         raise TimeoutError(f"{instance} khong tat trong {timeout}s, khong dam bao copy an toan")

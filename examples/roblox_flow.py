@@ -8,6 +8,7 @@ Thao tac trong Roblox them vao ham flow(), muc 5.
 """
 
 import argparse
+import re
 import sys
 import time
 from pathlib import Path
@@ -28,6 +29,7 @@ ROBLOX_PKG = "com.roblox.client"
 
 CPU, MEMORY, CPU_LIMIT = 2, 2048, 60
 STAGGER = 25               # giay giua moi may khi bat -- 4 may cung luc se nghen
+AUTOCONNECT_WAIT = 45      # giay doi ExpressVPN tu noi lai truoc khi can thiep
 RESOLUTION = None          # None = giu nguyen theo may goc
 
 # Nut Connect cua ExpressVPN, lay tu --dump-ui. Day la TOGGLE: bam khi dang bat
@@ -36,6 +38,16 @@ VPN_CONNECT_HINTS = [
     {"res_id": "vpn_connect_button"},
 ]
 VPN_STATUS_ID = "vpn_connection_status_text"   # 'Protected | 00:04:20' khi dang bat
+
+# Doc trang thai tu chinh dong chu do. Dung \b: 'Unprotected' chua 'protected',
+# con 'Not connected' / 'Disconnected' thi chua 'connected' -- so bang `in` la
+# nham ca hai chieu.
+VPN_ON_RE = re.compile(r"\bprotected\b", re.I)
+VPN_OFF_RE = re.compile(r"\bnot\b|\bdisconnect", re.I)
+
+
+def status_says_on(text: str) -> bool:
+    return bool(VPN_ON_RE.search(text)) and not VPN_OFF_RE.search(text)
 # --------------------------------------------------------------------------
 
 
@@ -45,11 +57,15 @@ def connect_vpn(inst: Instance, log: Log) -> None:
     Moc that su la interface tun co dia chi IP, khong phai chu tren man hinh:
     app bao 'Connected' ma khong co tun nghia la duong ham chua dung duoc.
     """
-    # Kiem tra TRUOC khi dung toi app. vpn_connect_button la toggle -- bam khi
-    # dang ket noi la ngat mat.
-    if inst.vpn_connected():
-        log("VPN da len san (tun co IP) -- khong dung toi nut Connect")
-        return
+    # ExpressVPN tu ket noi lai khi may ao khoi dong (thua tu may goc), nhung mat
+    # vai chuc giay. Kiem tra mot lan ngay sau boot la qua som: tun chua len,
+    # script tuong chua bat roi bam nut -- ma do la TOGGLE, tuc ngat mat cai
+    # dang tu noi. Doi han ra truoc khi can thiep.
+    for _ in range(AUTOCONNECT_WAIT // 3):
+        if inst.vpn_connected():
+            log("VPN tu len sau khi boot -- khong dung toi nut Connect")
+            return
+        time.sleep(3)
 
     inst.start_app_adb(VPN_PKG)
     time.sleep(4)  # cho app ve xong man hinh chinh truoc khi dump UI
@@ -64,23 +80,36 @@ def connect_vpn(inst: Instance, log: Log) -> None:
 
     nodes = inst.ui_nodes()
     status = inst.find_node(res_id=VPN_STATUS_ID, nodes=nodes)
+    txt = status["text"] if status else ""
     if status:
-        log(f"trang thai app: {status['text']!r}")
+        log(f"trang thai app: {txt!r}")
 
-    for hint in VPN_CONNECT_HINTS:
-        n = inst.find_node(**hint, nodes=nodes)
-        if n:
-            log(f"bam Connect ({hint}) tai {n['center']}")
-            inst.tap(*n["center"])
-            break
+    if status_says_on(txt):
+        # App da bat roi, chi la tun chua kip len. Bam vao day la NGAT.
+        log("app bao dang ket noi -- khong bam nut, chi doi tun")
     else:
-        # Nut nguon nam giua man hinh, hoi cao hon tam. Kem chac chan hon han
-        # res_id nen phai bao ro la dang doan.
-        log("KHONG thay nut Connect qua uiautomator -> bam giua man hinh")
-        log("   chay lai voi --dump-ui roi sua VPN_CONNECT_HINTS cho dung")
-        inst.tap_percent(50, 39)
+        for hint in VPN_CONNECT_HINTS:
+            n = inst.find_node(**hint, nodes=nodes)
+            if n:
+                log(f"bam Connect ({hint}) tai {n['center']}")
+                inst.tap(*n["center"])
+                break
+        else:
+            # Nut nguon nam giua man hinh, hoi cao hon tam. Kem chac chan hon han
+            # res_id nen phai bao ro la dang doan.
+            log("KHONG thay nut Connect qua uiautomator -> bam giua man hinh")
+            log("   chay lai voi --dump-ui roi sua VPN_CONNECT_HINTS cho dung")
+            inst.tap_percent(50, 39)
 
-    inst.wait_vpn(timeout=90)
+    try:
+        inst.wait_vpn(timeout=120)
+    except TimeoutError:
+        # Doi ma khong len: hoac cu bam vua roi ngat nham, hoac app that su chua
+        # noi duoc. Bam mot lan nua roi doi tiep -- chi mot lan, khong lap vo han.
+        log("tun chua len sau 120s -> bam Connect them mot lan roi doi tiep")
+        if not inst.tap_node(**VPN_CONNECT_HINTS[0]):
+            inst.tap_percent(50, 39)
+        inst.wait_vpn(timeout=120)
     log("VPN da len (tun co IP)")
 
 

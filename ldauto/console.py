@@ -138,12 +138,11 @@ class LDConsole:
         return self.find(name) is not None
 
     def is_running(self, instance: int | str) -> bool:
-        """Doc tu list2 (pid) chu khong dung lenh `isrunning`.
+        """Doc pid tu list2 thay vi so chuoi tra ve cua lenh `isrunning`.
 
-        `isrunning` in ra chuoi tieng Anh tren ban quoc te nhung tieng Trung tren
-        ban TQ, nen so `== "running"` la sai am tham: ham tra ve False cho may ao
-        DANG CHAY, va Farm.ensure() se copy mot o dia dang bi ghi. list2 tra ve
-        pid, la so, khong phu thuoc ngon ngu.
+        (Ban dau doi cach nay vi nghi `isrunning` in tieng Trung tren ban TQ --
+        do la SAI, no van in 'running'/'stop'. Nhung doc pid van tot hon: mot
+        lenh it hon, va la so nen khong phu thuoc chuoi ldconsole in ra.)
         """
         info = self.find(instance)
         return info is not None and info.running
