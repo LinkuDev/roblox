@@ -63,6 +63,7 @@ WINDOW_SLOT: dict[int, int] = {}
 WINDOW_COLS = 4              # 4 may nam ngang mot hang
 WINDOW_ORIGIN = (0, 0)       # goc tren trai man hinh
 WINDOW_GAP = (8, 8)          # khe ho giua hai cua so
+CHROME = (40, 90)            # vien + tieu de + cot cong cu, chi dung khi do hut
 # --------------------------------------------------------------------------
 
 
@@ -148,6 +149,14 @@ def flow(inst: Instance, log: Log) -> None:
         hwnd = info.top_window_handle if info else 0
         pos = window.slot_pos(hwnd, slot, cols=WINDOW_COLS,
                               origin=WINDOW_ORIGIN, gap=WINDOW_GAP)
+        if pos is None and info and info.width:
+            # Do khong duoc thi suy tu do phan giai may ao, cong CHROME cho phan
+            # khung: vien cua so, thanh tieu de va cot cong cu ben phai cua
+            # LDPlayer deu nam ngoai vung 400x500 do.
+            w, h = info.width + CHROME[0], (info.height or 500) + CHROME[1]
+            pos = (WINDOW_ORIGIN[0] + (slot % WINDOW_COLS) * (w + WINDOW_GAP[0]),
+                   WINDOW_ORIGIN[1] + (slot // WINDOW_COLS) * (h + WINDOW_GAP[1]))
+            log(f"khong do duoc cua so -> suy tu {info.width}x{info.height} + chrome")
         if pos and window.place_hwnd(hwnd, *pos):
             log(f"cua so -> o {slot} tai {pos} (hwnd={hwnd})")
         else:
