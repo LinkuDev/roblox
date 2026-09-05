@@ -68,3 +68,10 @@ config.local.py
 .env
 accounts.txt
 proxies.txt
+
+# Kho tai khoan: chua username + MAT KHAU dang chu thuong. Tuyet doi khong commit.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3

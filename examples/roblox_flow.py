@@ -11,12 +11,14 @@ import argparse
 import random
 import re
 import sys
+import threading
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ldauto import Farm, Instance, LDConsole, Log, Spec, report, run_parallel  # noqa: E402
+from ldauto import (AccountStore, Farm, Instance, LDConsole, Log, Spec,  # noqa: E402
+                    report, run_parallel)
 from ldauto import window  # noqa: E402
 
 # --------------------------------------------------------------------------
@@ -92,6 +94,36 @@ SCROLLS = {                  # so nac ngau nhien cho tung banh xe
 }
 AFTER_WHEELS = 2             # giay cho sau khi cuon xong
 SUBMIT_BTN = (197, 394)      # nut xac nhan duoi man chon ngay sinh
+
+# --- Man dang ky sau khi qua xac minh tuoi -------------------------------
+# Cung he toa do 400x500 nhu tren.
+STEP_PAUSE = 2               # giay giua moi thao tac
+USERNAME_FIELD = (201, 266)
+GENDER_FEMALE = (113, 290)   # icon ben trai
+GENDER_MALE = (288, 290)     # icon ben phai
+SIGNUP_CONTINUE = (200, 381)
+
+# --- Man "Create Account" / tao mat khau ---------------------------------
+# Sau khi bam Continue, Roblox mat mot luc moi ve xong man nay.
+PASSWORD_WAIT = 15
+# Man nay tu focus san vao o mat khau -> go thang, khong can bam truoc.
+# Nut Done. Toa do UOC LUONG tu anh chup, chua do tren may that -- xem chu
+# thich trong flow(). Nut cao ~40px nen lech 10-15px van trung.
+DONE_BTN = (200, 370)
+
+# --- Vong lap -------------------------------------------------------------
+ROUNDS = 0                   # 0 = chay khong gioi han, Ctrl+C de dung
+ROUND_PAUSE = 5              # giay cho sau khi bam Done, truoc khi tat may ao
+MAX_FAILS = 3                # so vong hong LIEN TIEP truoc khi bo may ao do
+# Bat lai 4 may ao cung luc lam nghen dia y het luc dau -- rai ngau nhien ra.
+RESTART_JITTER = 10
+
+# Dat khi nguoi dung Ctrl+C. Thread dang chay se xong vong hien tai roi dung,
+# khong cat ngang giua chung de khoi bo lai may ao dang bat.
+STOP = threading.Event()
+
+DB_PATH = "accounts.db"
+STORE: AccountStore | None = None   # tao o main(), moi thread dung chung
 # --------------------------------------------------------------------------
 
 
@@ -161,8 +193,11 @@ def connect_vpn(inst: Instance, log: Log) -> None:
     log("VPN da len (tun co IP)")
 
 
-def flow(inst: Instance, log: Log) -> None:
-    """Kich ban chay tren MOI may ao. Cac thread deu chay ham nay."""
+def one_round(inst: Instance, log: Log) -> str:
+    """Mot vong: bat may ao -> VPN -> Roblox -> tao xong mot tai khoan.
+
+    Tra ve username vua tao, de nguoi goi ghi lai ket qua.
+    """
 
     t0 = [time.monotonic()]
 
@@ -247,7 +282,102 @@ def flow(inst: Instance, log: Log) -> None:
 
     lap("xong man xac minh tuoi")
 
+    # 6. Man dang ky: username + gioi tinh.
+    #    Cap username/password sinh va luu vao SQLite TRUOC khi go, de neu may
+    #    ao chet giua chung thi van con ban ghi ma tra lai -- chu khong mat
+    #    mot tai khoan da tao tren Roblox ma khong biet mat khau la gi.
+    acc = STORE.new_account(ld_index=inst.index)
+    log(f"tai khoan moi: {acc.username} / {acc.password}")
+
+    log(f"bam o username tai {USERNAME_FIELD}")
+    inst.tap(*USERNAME_FIELD)
+    time.sleep(STEP_PAUSE)
+
+    inst.text(acc.username)
+    time.sleep(STEP_PAUSE)
+
+    gender, pos = random.choice([("nu", GENDER_FEMALE), ("nam", GENDER_MALE)])
+    log(f"gioi tinh: {gender} tai {pos}")
+    inst.tap(*pos)
+    time.sleep(STEP_PAUSE)
+
+    log(f"bam Continue tai {SIGNUP_CONTINUE}")
+    inst.tap(*SIGNUP_CONTINUE)
+    time.sleep(STEP_PAUSE)
+
+    STORE.update(acc.username, gender=gender, status="username_set")
+    lap(f"xong man dang ky ({acc.username})")
+
+    # 7. Man "Create Account": nhap mat khau roi bam Done.
+    #    Mat khau sinh ra da thoa ca ba luat man hinh nay kiem: >= 8 ky tu,
+    #    khong don gian, khong trung username (xem random_password()).
+    log(f"doi {PASSWORD_WAIT}s cho man tao mat khau...")
+    time.sleep(PASSWORD_WAIT)
+
+    log(f"go mat khau ({len(acc.password)} ky tu)")
+    inst.text(acc.password)
+    time.sleep(STEP_PAUSE)
+
+    log(f"bam Done tai {DONE_BTN}")
+    inst.tap(*DONE_BTN)
+    time.sleep(STEP_PAUSE)
+
+    # "submitted" = da bam het cac nut, KHONG phai "tao tai khoan thanh cong".
+    # Chua co buoc nao doc man hinh de xac nhan Roblox chap nhan.
+    STORE.update(acc.username, status="submitted")
+    lap(f"xong man mat khau ({acc.username})")
+
     # ------- THAO TAC TIEP THEO DAT O DAY -------
+
+    return acc.username
+
+
+def flow(inst: Instance, log: Log) -> None:
+    """Chay one_round lap di lap lai tren cung mot may ao.
+
+    Moi vong bat dau bang mot may ao vua boot: tat han roi bat lai chac chan
+    hon la dung tiep phien cu, vi Roblox con giu phien dang nhap cua tai khoan
+    vua tao -- vong sau se khong ra man dang ky nua.
+    """
+    made: list[str] = []
+    fails = 0
+    n = 0
+    while not STOP.is_set():
+        n += 1
+        log(f"===== vong {n}" + (f"/{ROUNDS}" if ROUNDS else "") + " =====")
+        try:
+            made.append(one_round(inst, log))
+            fails = 0
+        except Exception as exc:
+            fails += 1
+            log(f"vong {n} HONG ({fails}/{MAX_FAILS}): {type(exc).__name__}: {exc}")
+            # Vong hong khong duoc keo do ca may ao: mot lan VPN cham hay
+            # Roblox ve lau la chuyen thuong. Chi bo cuoc khi hong LIEN TIEP.
+            if fails >= MAX_FAILS:
+                log(f"hong {MAX_FAILS} vong lien tiep -> dung may ao nay")
+                raise
+        finally:
+            # Tat may ao du vong vua roi thanh hay bai -- vong sau phai bat dau
+            # tu may sach. Loi luc tat khong duoc de nuot mat loi that o tren.
+            try:
+                log(f"doi {ROUND_PAUSE}s roi tat may ao")
+                STOP.wait(ROUND_PAUSE)
+                inst.stop()
+                # settle=0: cho them giay chi can truoc khi COPY o dia.
+                inst.console.wait_stopped(inst.index, settle=0)
+            except Exception as exc:
+                log(f"tat may ao khong sach: {type(exc).__name__}: {exc}")
+
+        if ROUNDS and n >= ROUNDS:
+            break
+        if STOP.is_set():
+            break
+        # Rai ngau nhien de 4 may khong cung boot lai mot luc.
+        wait = random.uniform(0, RESTART_JITTER)
+        log(f"nghi {wait:.0f}s truoc vong sau")
+        STOP.wait(wait)
+
+    log(f"dung sau {n} vong, tao duoc {len(made)} tai khoan: {made}")
 
 
 def build_instances(console: LDConsole, do_clone: bool) -> list[Instance]:
@@ -290,6 +420,10 @@ def build_instances(console: LDConsole, do_clone: bool) -> list[Instance]:
 
 
 def main() -> int:
+    # Khai bao o dau ham: Python doi `global` phai dung TRUOC moi lan dung ten
+    # do trong ham, ma ROUNDS/ROUND_PAUSE con duoc dung lam default cho argparse.
+    global STORE, ROUNDS, ROUND_PAUSE
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--clone", action="store_true", help="clone cho du 4 may truoc khi chay")
     ap.add_argument("--dump-ui", nargs="?", const=VPN_PKG, metavar="PACKAGE",
@@ -299,6 +433,13 @@ def main() -> int:
     ap.add_argument("--dump-index", type=int, default=None,
                     help="may ao nao de dump (mac dinh: may goc)")
     ap.add_argument("--ldconsole", default=LDCONSOLE)
+    ap.add_argument("--rounds", type=int, default=ROUNDS,
+                    help="so vong moi may ao chay (0 = khong gioi han, Ctrl+C de dung)")
+    ap.add_argument("--round-pause", type=float, default=ROUND_PAUSE,
+                    help=f"giay cho sau khi bam Done truoc khi tat may ao "
+                         f"(mac dinh {ROUND_PAUSE})")
+    ap.add_argument("--db", default=DB_PATH,
+                    help=f"file SQLite giu username/password (mac dinh {DB_PATH})")
     ap.add_argument("--stagger", type=float, default=STAGGER)
     ap.add_argument("--clear-clones", action="store_true",
                     help="chi xoa du lieu Roblox tren clone, giu nguyen may goc")
@@ -328,6 +469,10 @@ def main() -> int:
         return 0
 
     console = LDConsole(args.ldconsole)
+
+    ROUNDS, ROUND_PAUSE = args.rounds, args.round_pause
+    STORE = AccountStore(args.db)
+    print(f"Kho tai khoan: {args.db} (dang co {STORE.count()} ban ghi)")
 
     if not args.no_tune:
         # Bot tai chung cho ca LDPlayer: 4 may ao boot cung luc la nghen dia va
@@ -411,9 +556,26 @@ def main() -> int:
                 console.wait_stopped(i.index, settle=0)
             print("da tat xong\n")
 
+    print(f"Vong lap: {ROUNDS or 'khong gioi han'} vong/may ao, "
+          f"cho {ROUND_PAUSE:.0f}s sau khi bam Done" +
+          ("" if ROUNDS else "  (Ctrl+C de dung)"))
+
     t_start = time.monotonic()
-    results = run_parallel(instances, flow, stagger=args.stagger)
-    print(f"\nTong thoi gian: {time.monotonic() - t_start:.0f}s")
+    try:
+        results = run_parallel(instances, flow, stagger=args.stagger)
+    except KeyboardInterrupt:
+        # Bao cac thread dung SAU khi xong vong hien tai. Cat ngang giua chung
+        # se bo lai may ao dang bat va mot ban ghi tai khoan do dang.
+        STOP.set()
+        print("\n\nCtrl+C -- cho cac may ao xong vong hien tai roi dung...")
+        print("(Ctrl+C lan nua de thoat ngay, may ao se con bat)")
+        return 130
+
+    dt = time.monotonic() - t_start
+    print(f"\nTong thoi gian: {dt:.0f}s")
+    print(f"Kho tai khoan: {STORE.count()} ban ghi "
+          f"({STORE.count('submitted')} da bam het, "
+          f"{STORE.count('new') + STORE.count('username_set')} do dang)")
     return report(results)
 
 
