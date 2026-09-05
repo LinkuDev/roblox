@@ -313,10 +313,18 @@ class App:
 
     def _on_close(self):
         if self._running():
-            if not messagebox.askyesno("Thoat", "Cac luong dang chay. Van thoat?"):
+            if not messagebox.askyesno(
+                    "Thoat", "Cac luong dang chay. Dong app va TAT HET may ao?"):
                 return
-            rf.STOP.set()
-            rf.RESUME.set()
+        # 1. Bao cac luong dung (chung la daemon -> chet theo tien trinh, nhung
+        #    set STOP de chung khong con gui lenh trong luc dang tat may ao).
+        rf.STOP.set()
+        rf.RESUME.set()
+        # 2. Tat het may ao LDPlayer (ldconsole quitall) truoc khi thoat.
+        try:
+            rf.LDConsole(self.var_ld.get()).quit_all()
+        except Exception:
+            pass
         self.root.destroy()
 
 
