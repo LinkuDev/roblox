@@ -64,18 +64,21 @@ def find(title: str) -> int | None:
     return None
 
 
-def place(
-    title: str,
+def place_hwnd(
+    hwnd: int,
     x: int,
     y: int,
     width: int | None = None,
     height: int | None = None,
 ) -> bool:
-    """Dat cua so vao (x, y). Tra ve False neu khong tim thay cua so."""
-    if not _WIN:
+    """Dat cua so theo handle. Cach chac chan nhat: khoi doan tieu de.
+
+    `ldconsole list2` tra ve san handle o cot 3 (top_window_handle), nen lay
+    thang tu do. Handle bang 0 nghia la may ao chua bat.
+    """
+    if not _WIN or not hwnd:
         return False
-    hwnd = find(title)
-    if hwnd is None:
+    if not _user32.IsWindow(hwnd):
         return False
     # Cua so dang thu nho thi SetWindowPos khong co tac dung nhin thay duoc.
     _user32.ShowWindow(hwnd, SW_RESTORE)
@@ -83,6 +86,19 @@ def place(
     _user32.SetWindowPos(hwnd, 0, int(x), int(y),
                          int(width or 0), int(height or 0), flags)
     return True
+
+
+def place(
+    title: str,
+    x: int,
+    y: int,
+    width: int | None = None,
+    height: int | None = None,
+) -> bool:
+    """Dat cua so tim theo tieu de. Kem chac hon place_hwnd -- tieu de cua so
+    LDPlayer la ten APP dang mo, khong phai ten may ao."""
+    hwnd = find(title)
+    return place_hwnd(hwnd, x, y, width, height) if hwnd else False
 
 
 def grid(

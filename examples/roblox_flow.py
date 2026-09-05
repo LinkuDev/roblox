@@ -139,14 +139,18 @@ def flow(inst: Instance, log: Log) -> None:
     inst.start() if REUSE else inst.restart(log)
     log(f"san sang -> {inst.serial}")
 
-    # 1b. keo cua so ve dung cho de 4 may khong de len nhau
+    # 1b. keo cua so ve dung cho de 4 may khong de len nhau.
+    #     Lay handle tu list2 chu khong do theo tieu de: tieu de cua so LDPlayer
+    #     la ten app dang mo ('Roblox'), khong phai ten may ao. Phai doc SAU khi
+    #     may ao bat xong -- luc tat thi handle bang 0.
     pos = WINDOW_POS.get(inst.index)
     if pos:
-        name = WINDOW_NAME.get(inst.index, "")
-        if window.place(name, *pos):
-            log(f"da dat cua so {name!r} vao {pos}")
+        info = inst.console.find(inst.index)
+        hwnd = info.top_window_handle if info else 0
+        if window.place_hwnd(hwnd, *pos):
+            log(f"da keo cua so (hwnd={hwnd}) ve {pos}")
         else:
-            log(f"khong tim thay cua so ten {name!r} de keo -- bo qua")
+            log(f"khong keo duoc cua so, hwnd={hwnd} -- bo qua")
     if CPU_LIMIT:
         inst.console.down_cpu(inst.index, CPU_LIMIT)
 
@@ -243,6 +247,11 @@ def main() -> int:
     REUSE = args.reuse
 
     if args.list_windows:
+        print("Handle ldconsole bao (list2):")
+        for i in console.list2():
+            print(f"  index={i.index:<6} name={i.name!r:12} top_window={i.top_window_handle} "
+                  f"bind_window={i.bind_window_handle}")
+        print("\nCua so Windows dang mo:")
         for hwnd, title, cls in window.list_windows():
             print(f"  hwnd={hwnd:<10} class={cls:<28} title={title!r}")
         return 0
