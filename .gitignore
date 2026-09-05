@@ -75,3 +75,9 @@ proxies.txt
 *.db-shm
 *.sqlite
 *.sqlite3
+
+# File xuat cookie: chua .ROBLOSECURITY = credential song. Khong bao gio commit.
+*_export.txt
+accounts_export.*
+cookies/
+Cookies_*.db

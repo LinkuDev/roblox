@@ -1,0 +1,330 @@
+import os
+import sys
+import time
+import json
+import sqlite3
+import ssl
+import subprocess
+import urllib.request
+from datetime import datetime
+
+# ==========================================
+# CẤU HÌNH ĐƯỜNG DẪN
+# ==========================================
+LD_DIR = r"C:\LDPlayer\LDPlayer9"  # Đổi thành D:\LDPlayer\LDPlayer9 nếu dùng ổ D
+MAT_KHAU_CHUNG = "hien2611"
+ADB = os.path.join(LD_DIR, "adb.exe")
+LDCONSOLE = os.path.join(LD_DIR, "ldconsole.exe")
+OUTPUT_FILE = os.path.join(LD_DIR, "danh_sach_acc.txt")
+STATS_FILE = os.path.join(LD_DIR, "thong_ke_san_luong.json")
+
+ssl_ctx = ssl._create_unverified_context()
+
+
+def kiem_tra_duong_dan():
+    if not os.path.exists(LD_DIR):
+        print(f"[!] LỖI: Không tìm thấy thư mục: {LD_DIR}")
+        return False
+    if not os.path.exists(LDCONSOLE):
+        print(f"[!] LỖI: Không tìm thấy file: {LDCONSOLE}")
+        return False
+    if not os.path.exists(ADB):
+        print(f"[!] LỖI: Không tìm thấy file: {ADB}")
+        return False
+    return True
+
+
+# ==========================================
+# QUẢN LÝ THỐNG KÊ SẢN LƯỢNG THEO NGÀY
+# ==========================================
+def load_stats():
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    default_stats = {
+        "current_date": today_str,
+        "today_count": 0,
+        "first_run_time": datetime.now().strftime("%H:%M:%S"),
+        "last_run_time": datetime.now().strftime("%H:%M:%S"),
+        "grand_total": 0,
+        "history": {}
+    }
+    if os.path.exists(STATS_FILE):
+        try:
+            with open(STATS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("current_date") != today_str:
+                old_date = data.get("current_date")
+                old_count = data.get("today_count", 0)
+                if "history" not in data:
+                    data["history"] = {}
+                if old_date:
+                    data["history"][old_date] = old_count
+                data["current_date"] = today_str
+                data["today_count"] = 0
+                data["first_run_time"] = datetime.now().strftime("%H:%M:%S")
+            data["last_run_time"] = datetime.now().strftime("%H:%M:%S")
+            return data
+        except Exception:
+            return default_stats
+    return default_stats
+
+
+def save_stats(stats):
+    try:
+        with open(STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(stats, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"[!] Lỗi ghi file thống kê: {e}")
+
+
+def record_added_accounts(count_added):
+    if count_added <= 0:
+        return load_stats()
+    stats = load_stats()
+    stats["today_count"] += count_added
+    stats["grand_total"] += count_added
+    stats["last_run_time"] = datetime.now().strftime("%H:%M:%S")
+    save_stats(stats)
+    return stats
+
+
+def count_existing_accounts(file_path):
+    if not os.path.exists(file_path):
+        return 0
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        return sum(1 for line in f if line.strip())
+
+
+# ==========================================
+# TRÍCH XUẤT ADB & ROBLOX COOKIE (TỰ ĐỘNG DÒ TÌM ĐỆ QUY)
+# ==========================================
+def get_all_running_tabs():
+    res = subprocess.run(
+        f'"{LDCONSOLE}" list2',
+        shell=True,
+        capture_output=True,
+        encoding="latin1",
+        errors="ignore"
+    )
+    running = []
+    for line in res.stdout.strip().splitlines():
+        parts = line.split(",")
+        if len(parts) >= 7 and parts[4] == "1":
+            try:
+                idx = int(parts[0])
+            except ValueError:
+                continue
+            name = parts[1].strip()
+            port = 5555 + (idx * 2)
+            dev_addr = f"127.0.0.1:{port}"
+
+            subprocess.run(
+                f'"{ADB}" connect {dev_addr}',
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            running.append({"index": idx, "name": name, "device_id": dev_addr})
+    return running
+
+
+def rename_ld_tab(tab_index, new_name):
+    if tab_index is None:
+        return
+    cmd = f'"{LDCONSOLE}" rename --index {tab_index} --title "{new_name}"'
+    subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def get_username_from_cookie(cookie_raw):
+    formats_to_try = [
+        cookie_raw,
+        f"_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-into-your-account-and-steal-your-points-and-Robux|_{cookie_raw}" if not cookie_raw.startswith("_|WARNING") else cookie_raw
+    ]
+    for c in formats_to_try:
+        try:
+            req = urllib.request.Request("https://users.roblox.com/v1/users/authenticated")
+            req.add_header("Cookie", f".ROBLOSECURITY={c}")
+            req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            with urllib.request.urlopen(req, timeout=5, context=ssl_ctx) as response:
+                data = json.loads(response.read().decode())
+                if "name" in data:
+                    return data["name"]
+        except Exception:
+            continue
+    return "Unknown"
+
+
+def extract_from_device(tab_info):
+    device_id = tab_info["device_id"]
+    tab_index = tab_info["index"]
+    tab_name = tab_info["name"]
+
+    temp_db = os.path.join(LD_DIR, f"Cookies_{tab_index}.db")
+    print(f"\n--- [Tab {tab_index}] ({tab_name}) - Port: {device_id} ---")
+
+    # 1. Dọn dẹp file tạm cũ trên máy ảo
+    subprocess.run(f'"{ADB}" -s {device_id} shell "su 0 rm -f /sdcard/Cookies.db /sdcard/Cookies.db-wal /sdcard/Cookies.db-shm"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    # 2. Tìm kiếm tự động tất cả các file Cookies của mọi app chứa chữ 'roblox'
+    find_cmd = f'"{ADB}" -s {device_id} shell "su 0 find /data/data/ -type f \( -name Cookies -o -name cookies.sqlite -o -name webviewCookiesChromium.db \) 2>/dev/null"'
+    res_find = subprocess.run(find_cmd, shell=True, capture_output=True, text=True)
+    all_cookie_paths = [p.strip() for p in res_find.stdout.strip().splitlines() if p.strip() and "roblox" in p.lower()]
+
+    raw_cookie = None
+
+    # Quét qua từng file tìm thấy
+    for target_path in all_cookie_paths:
+        # Checkpoint WAL sang file chính nếu có
+        subprocess.run(f'"{ADB}" -s {device_id} shell "su 0 cp {target_path} /sdcard/Cookies.db"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(f'"{ADB}" -s {device_id} shell "su 0 chmod 777 /sdcard/Cookies.db"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(f'"{ADB}" -s {device_id} pull /sdcard/Cookies.db "{temp_db}"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        if os.path.exists(temp_db) and os.path.getsize(temp_db) > 0:
+            try:
+                conn = sqlite3.connect(temp_db)
+                cursor = conn.cursor()
+                cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY'")
+                row = cursor.fetchone()
+                if row:
+                    raw_cookie = row[0]
+                conn.close()
+            except Exception:
+                pass
+
+        if os.path.exists(temp_db):
+            os.remove(temp_db)
+
+        if raw_cookie:
+            break
+
+    # Trường hợp không tìm thấy bằng lệnh find (Thử đường dẫn trực tiếp dự phòng)
+    if not raw_cookie:
+        fallback_paths = [
+            "/data/data/com.roblox.robloxvn/app_webview/Default/Cookies",
+            "/data/data/com.roblox.robloxvn/app_webview/Cookies",
+            "/data/data/com.roblox.robloxvn/app_webview/Default/Network/Cookies",
+            "/data/data/com.roblox.client/app_webview/Default/Cookies",
+            "/data/data/com.roblox.client/app_webview/Cookies",
+            "/data/data/com.roblox.client/app_webview/Default/Network/Cookies"
+        ]
+        for target_path in fallback_paths:
+            subprocess.run(f'"{ADB}" -s {device_id} shell "su 0 cp {target_path} /sdcard/Cookies.db"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(f'"{ADB}" -s {device_id} shell "su 0 chmod 777 /sdcard/Cookies.db"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(f'"{ADB}" -s {device_id} pull /sdcard/Cookies.db "{temp_db}"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            if os.path.exists(temp_db) and os.path.getsize(temp_db) > 0:
+                try:
+                    conn = sqlite3.connect(temp_db)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY'")
+                    row = cursor.fetchone()
+                    if row:
+                        raw_cookie = row[0]
+                    conn.close()
+                except Exception:
+                    pass
+
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+            if raw_cookie:
+                break
+
+    if not raw_cookie:
+        print(f"[!] [Tab {tab_index}]: Không lấy được .ROBLOSECURITY (Kiểm tra lại quyền ROOT của tab).")
+        return False
+
+    username = get_username_from_cookie(raw_cookie)
+    final_cookie = raw_cookie if raw_cookie.startswith("_|WARNING") else f"_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-into-your-account-and-steal-your-points-and-Robux|_{raw_cookie}"
+
+    if username != "Unknown":
+        print(f"[OK] [Tab {tab_index}] Username: {username}")
+        rename_ld_tab(tab_index, username)
+        print(f"[RENAME] Đổi tên Tab {tab_index} -> {username}")
+    else:
+        print(f"[!] [Tab {tab_index}]: Không lấy được username qua API Roblox.")
+        return False
+
+    ket_qua = f"{username}:{MAT_KHAU_CHUNG}:{final_cookie}"
+    da_co = False
+    if os.path.exists(OUTPUT_FILE):
+        with open(OUTPUT_FILE, "r", encoding="utf-8", errors="ignore") as f:
+            if raw_cookie in f.read():
+                da_co = True
+
+    if not da_co:
+        with open(OUTPUT_FILE, "a", encoding="utf-8") as f:
+            f.write(ket_qua + "\n")
+        print(f"[SAVED] Đã lưu: {username}:{MAT_KHAU_CHUNG}")
+        return True
+    else:
+        print(f"[>] [Tab {tab_index}]: Acc này đã có sẵn trong file.")
+        return False
+
+
+# ==========================================
+# HÀM THỰC THI CHÍNH
+# ==========================================
+def main():
+    start_time = time.time()
+
+    print("=" * 65)
+    print(" HỆ THỐNG QUÉT ROBLOX (DEEP SCAN) - THỐNG KÊ SẢN LƯỢNG NGÀY/GIỜ")
+    print("=" * 65)
+
+    if not kiem_tra_duong_dan():
+        return
+
+    stats = load_stats()
+    so_acc_ban_dau = count_existing_accounts(OUTPUT_FILE)
+
+    print(f"[*] Ngày hiện tại       : {stats['current_date']}")
+    print(f"[*] Đã làm hôm nay      : {stats['today_count']} acc")
+    print(f"[*] Tổng tích lũy hệ thống: {stats['grand_total']} acc")
+    print(f"[*] Tổng acc trong file : {so_acc_ban_dau}")
+    print("-" * 65)
+
+    running_tabs = get_all_running_tabs()
+    if not running_tabs:
+        print("[-] Không tìm thấy tab LDPlayer nào đang chạy!")
+        return
+
+    print(f"[+] Phát hiện {len(running_tabs)} tab đang hoạt động.")
+
+    so_acc_them_moi = 0
+    for tab_info in running_tabs:
+        if extract_from_device(tab_info):
+            so_acc_them_moi += 1
+
+    updated_stats = record_added_accounts(so_acc_them_moi)
+    tong_acc_file = count_existing_accounts(OUTPUT_FILE)
+    elapsed = round(time.time() - start_time, 2)
+
+    speed_text = ""
+    if so_acc_them_moi > 0:
+        sec_per_acc = round(elapsed / so_acc_them_moi, 2)
+        speed_text = f" (~{sec_per_acc}s / 1 acc)"
+
+    print("\n" + "=" * 65)
+    print("                 BÁO CÁO KẾT QUẢ")
+    print("=" * 65)
+    print(f"[+] Thêm mới lượt này   : +{so_acc_them_moi} acc (Hết {elapsed}s{speed_text})")
+    print(f"[+] Lô hôm nay ({updated_stats['current_date']}): {updated_stats['today_count']} acc")
+    print(f"[+] Tổng tích lũy tất cả: {updated_stats['grand_total']} acc")
+    print(f"[+] Tổng dòng file txt  : {tong_acc_file} dòng")
+
+    if updated_stats.get("history"):
+        print("\n--- Lịch sử các lô ngày trước ---")
+        for d, c in sorted(updated_stats["history"].items(), reverse=True)[:5]:
+            print(f"  * Ngày {d}: {c} acc")
+
+    print("=" * 65)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as ex:
+        print(f"\n[LỖI HỆ THỐNG]: {ex}")
+    finally:
+        print("\n" + "-" * 40)
+        input("Nhấn phím Enter để đóng...")

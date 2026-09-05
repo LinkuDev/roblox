@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS accounts (
     gender     TEXT,
     status     TEXT    NOT NULL DEFAULT 'new',
     note       TEXT,
+    cookie          TEXT,           -- .ROBLOSECURITY, credential song
+    roblox_user_id  INTEGER,        -- id that tu API, xac nhan cookie dung acc
+    verified_at     REAL,           -- luc verify cookie qua API
     created_at REAL    NOT NULL,
     updated_at REAL    NOT NULL
 );
@@ -114,6 +117,13 @@ class AccountStore:
         with self._lock:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.executescript(_SCHEMA)
+            # Them cot moi vao DB cu (tao truoc khi co cookie) neu con thieu.
+            have = {r["name"] for r in self._db.execute("PRAGMA table_info(accounts)")}
+            for col, decl in (("cookie", "TEXT"),
+                              ("roblox_user_id", "INTEGER"),
+                              ("verified_at", "REAL")):
+                if col not in have:
+                    self._db.execute(f"ALTER TABLE accounts ADD COLUMN {col} {decl}")
             self._db.commit()
 
     def close(self) -> None:
@@ -154,7 +164,8 @@ class AccountStore:
 
     def update(self, username: str, **fields) -> None:
         """Cap nhat status / gender / note / ld_index cua mot tai khoan."""
-        allowed = {"status", "gender", "note", "ld_index", "password"}
+        allowed = {"status", "gender", "note", "ld_index", "password",
+                   "cookie", "roblox_user_id", "verified_at"}
         bad = set(fields) - allowed
         if bad:
             raise ValueError(f"Cot khong hop le: {sorted(bad)}")
@@ -200,12 +211,14 @@ def _main() -> int:
     rows = store.all(status)
     print(f"{path}: {len(rows)} tai khoan" + (f" (status={status})" if status else ""))
     print(f"{'id':>4}  {'username':22} {'password':18} {'idx':>3} "
-          f"{'gender':7} {'status':10} note")
+          f"{'gender':7} {'status':11} {'cookie':8} note")
     for r in rows:
         t = time.strftime("%H:%M:%S", time.localtime(r["created_at"]))
+        ck = r["cookie"] if "cookie" in r.keys() else None
+        ck_mark = f"{len(ck)}c" if ck else "-"
         print(f"{r['id']:>4}  {r['username']:22} {r['password']:18} "
               f"{str(r['ld_index'] if r['ld_index'] is not None else '-'):>3} "
-              f"{r['gender'] or '-':7} {r['status']:10} {r['note'] or ''} ({t})")
+              f"{r['gender'] or '-':7} {r['status']:11} {ck_mark:8} {r['note'] or ''} ({t})")
     return 0
 
 

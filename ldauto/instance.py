@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -11,6 +12,7 @@ import adbutils
 import cv2
 import numpy as np
 
+from . import cookie as _cookie
 from .console import LDConsole
 
 
@@ -559,3 +561,80 @@ class Instance:
             if pos:
                 return tpl.name, pos
         return None
+
+    # ---------- cookie .ROBLOSECURITY ----------
+
+    # Ten file cookie cua WebView Chromium, quet de-quy trong /data/data.
+    _COOKIE_NAMES = ("Cookies", "cookies.sqlite", "webviewCookiesChromium.db")
+
+    def _find_cookie_dbs(self) -> list[str]:
+        """Deep-scan: tim moi file cookie cua app co chu 'roblox'.
+
+        Giong y script goc -- khong doan duong dan cung, tim thang. Doi lai
+        can ROOT (su) vi /data/data la vung rieng cua app.
+        """
+        # Moi ten mot lenh find rieng: tranh phai escape dau ngoac \\( \\) qua
+        # nhieu tang shell (Python -> adb -> sh Android), rat de sai mot dau.
+        found: list[str] = []
+        for name in self._COOKIE_NAMES:
+            out = self.sh(f"su 0 find /data/data/ -type f -name {name} 2>/dev/null",
+                          timeout=60)
+            found += [ln.strip() for ln in out.splitlines()
+                      if ln.strip() and "roblox" in ln.lower()]
+        return found
+
+    def extract_cookie(self) -> tuple[str | None, str]:
+        """Lay .ROBLOSECURITY tu may nay. Tra ve (cookie, ly_do).
+
+        ly_do: 'ok' | 'not_found' | 'encrypted' | 'no_root'
+          - 'ok'        : cookie lay duoc, la gia tri tra ve
+          - 'encrypted' : cookie o dang v10, can giai ma (chua ho tro)
+          - 'not_found' : khong thay cookie (login that bai / chua co)
+          - 'no_root'   : may khong bat root nen khong doc duoc /data/data
+
+        Khac script goc o cho QUAN TRONG: keo ca -wal va -shm. Cookie vua tao
+        con nam trong WAL, chua nhap vao file chinh -- copy moi file chinh (nhu
+        script goc) se doc ra rong dung vao ca tai khoan vua dang ky.
+        """
+        paths = self._find_cookie_dbs()
+        if not paths:
+            # Phan biet "khong co root" voi "khong co cookie": thu doc mot thu muc
+            # can root. Rong/loi -> gan nhu chac la chua bat root.
+            probe = self.sh("su 0 id 2>/dev/null", timeout=15)
+            if "uid=0" not in probe:
+                return None, "no_root"
+            return None, "not_found"
+
+        encrypted_seen = False
+        for src in paths:
+            stage = "/sdcard/_ck.db"
+            with tempfile.TemporaryDirectory() as d:
+                local = Path(d) / "Cookies"
+                ok = False
+                for suffix in ("", "-wal", "-shm"):
+                    # -wal/-shm co the khong ton tai -> bo qua loi, khong sao.
+                    self.sh(f"su 0 cp '{src}{suffix}' '{stage}{suffix}' 2>/dev/null", timeout=30)
+                    self.sh(f"su 0 chmod 666 '{stage}{suffix}' 2>/dev/null", timeout=15)
+                    try:
+                        self.device.sync.pull(f"{stage}{suffix}", str(local) + suffix)
+                        if suffix == "":
+                            ok = True
+                    except Exception:
+                        if suffix == "":
+                            ok = False
+                    finally:
+                        self.sh(f"su 0 rm -f '{stage}{suffix}' 2>/dev/null", timeout=15)
+                if not ok or not local.exists():
+                    continue
+
+                # SQLite mo file chinh se tu replay Cookies-wal ben canh.
+                ck, enc = _cookie.read_roblosecurity(local)
+                if ck:
+                    return ck, "ok"
+                encrypted_seen = encrypted_seen or enc
+
+        return None, ("encrypted" if encrypted_seen else "not_found")
+
+    def verify_cookie(self, ck: str) -> dict | None:
+        """Goi API Roblox xac nhan cookie song. {'id','name'} hoac None."""
+        return _cookie.verify_cookie(ck)

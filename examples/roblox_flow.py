@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ldauto import (AccountStore, Farm, Instance, LDConsole, Log, Spec,  # noqa: E402
-                    report, run_parallel)
+                    ensure_warning_prefix, report, run_parallel)
 from ldauto import window  # noqa: E402
 
 # --------------------------------------------------------------------------
@@ -138,6 +138,12 @@ RESTART_JITTER = 10
 # Dat khi nguoi dung Ctrl+C. Thread dang chay se xong vong hien tai roi dung,
 # khong cat ngang giua chung de khoi bo lai may ao dang bat.
 STOP = threading.Event()
+
+# --- Lay cookie cuoi flow ------------------------------------------------
+# Cho Roblox login xong han sau khi bam Done -> cookie moi duoc ghi vao DB
+# cua WebView. Lay som qua thi chua co gi.
+COOKIE_WAIT = 12
+VERIFY_COOKIE = True         # goi API Roblox xac nhan cookie song + dung acc
 
 DB_PATH = "accounts.db"
 STORE: AccountStore | None = None   # tao o main(), moi thread dung chung
@@ -342,6 +348,38 @@ def one_round(inst: Instance, log: Log) -> str:
     # Chua co buoc nao doc man hinh de xac nhan Roblox chap nhan.
     STORE.update(acc.username, status="submitted")
     lap(f"xong man mat khau ({acc.username})")
+
+    # 8. Lay cookie .ROBLOSECURITY ngay tren may nay.
+    #    Biet chac may nay dang login acc.username (vua tao), nen khong can API
+    #    de dinh danh -- API chi con vai tro XAC NHAN. Buoc nay cung la cach
+    #    duy nhat biet dang ky co that su thanh cong hay khong.
+    pause(COOKIE_WAIT, log, "cho Roblox login xong truoc khi lay cookie")
+    ck, reason = inst.extract_cookie()
+    if not ck:
+        # Khong co cookie = login chua thanh cong (captcha, treo, hoac chua root).
+        STORE.update(acc.username, status=f"failed_{reason}")
+        log(f"KHONG lay duoc cookie ({reason}) -> danh dau failed_{reason}")
+    elif VERIFY_COOKIE:
+        info = inst.verify_cookie(ck)
+        if info and info["name"].lower() == acc.username.lower():
+            STORE.update(acc.username, cookie=ensure_warning_prefix(ck),
+                         roblox_user_id=info["id"], verified_at=time.time(),
+                         status="done")
+            log(f"cookie OK, verify: {info['name']} (id={info['id']})")
+        elif info:
+            # Cookie song nhung username khac -> may login nham acc khac.
+            STORE.update(acc.username, cookie=ensure_warning_prefix(ck),
+                         note=f"cookie thuoc {info['name']}", status="mismatch")
+            log(f"CANH BAO: cookie thuoc {info['name']}, khong phai {acc.username}")
+        else:
+            STORE.update(acc.username, cookie=ensure_warning_prefix(ck),
+                         status="cookie_unverified")
+            log("lay duoc cookie nhung verify that bai")
+    else:
+        STORE.update(acc.username, cookie=ensure_warning_prefix(ck), status="done")
+        log("cookie OK (khong verify)")
+
+    lap(f"xong lay cookie ({acc.username})")
 
     # ------- THAO TAC TIEP THEO DAT O DAY -------
 
