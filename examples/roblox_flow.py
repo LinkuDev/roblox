@@ -303,10 +303,12 @@ def main() -> int:
     elif args.clear_clones:
         # instances[0] la may goc.
         CLEAR_ROBLOX_ON.update(i.index for i in instances[1:])
-        print(f"Se xoa du lieu Roblox tren clone: {sorted(CLEAR_ROBLOX_ON)}")
+        print(f"Se xoa {ROBLOX_PKG} tren clone {sorted(CLEAR_ROBLOX_ON)} "
+              f"(chi app nay, khong dung {VPN_PKG})")
     else:
         CLEAR_ROBLOX_ON.update(i.index for i in instances)
-        print(f"Se xoa du lieu Roblox tren tat ca: {sorted(CLEAR_ROBLOX_ON)}")
+        print(f"Se xoa {ROBLOX_PKG} tren may {sorted(CLEAR_ROBLOX_ON)} "
+              f"(chi app nay, khong dung {VPN_PKG})")
     print()
 
     # Tat dong loat TRUOC khi vao vong song song. `quit` re va khong ton CPU,
