@@ -78,8 +78,13 @@ WHEELS = {                   # ba banh xe chon ngay sinh
     "nam":   (313, 244),
 }
 SCROLL_DY = 60               # pixel moi nac cuon
-YEAR_SCROLLS = 5             # so nac cuon o banh xe nam
-RANDOM_SCROLLS = (1, 6)      # so nac ngau nhien cho thang va ngay
+SCROLLS = {                  # so nac ngau nhien cho tung banh xe
+    "thang": (1, 11),
+    "ngay":  (1, 11),
+    "nam":   (15, 20),
+}
+AFTER_WHEELS = 2             # giay cho sau khi cuon xong
+SUBMIT_BTN = (197, 394)      # nut xac nhan duoi man chon ngay sinh
 # --------------------------------------------------------------------------
 
 
@@ -220,12 +225,13 @@ def flow(inst: Instance, log: Log) -> None:
     # Moi may mot ngay sinh khac nhau: 4 tai khoan cung ngay sinh la mot dau
     # hieu de nhan ra chung di cung mot nhom.
     for name, (x, y) in WHEELS.items():
-        if name == "nam":
-            times = YEAR_SCROLLS
-        else:
-            times = random.randint(*RANDOM_SCROLLS)
+        times = random.randint(*SCROLLS[name])
         log(f"banh xe {name} tai ({x}, {y}): cuon {times} nac")
         inst.scroll(x, y, times=times, dy=SCROLL_DY)
+
+    time.sleep(AFTER_WHEELS)
+    log(f"bam xac nhan tai {SUBMIT_BTN}")
+    inst.tap(*SUBMIT_BTN)
 
     lap("xong man xac minh tuoi")
 
