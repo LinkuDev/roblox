@@ -142,10 +142,15 @@ class LDConsole:
     def create(self, name: str) -> None:
         self.run("add", "--name", name)
 
-    def copy_from(self, name: str, source: int | str) -> None:
-        """Nhan ban tu may ao co san -- nhanh hon `create` vi khoi cai lai app."""
+    def copy_from(self, name: str, source: int | str, timeout: float = 1800.0) -> None:
+        """Nhan ban tu may ao co san -- nhanh hon `create` vi khoi cai lai app.
+
+        timeout mac dinh 30 phut chu khong phai 60s cua run(): lenh nay phai chep
+        nguyen file .vmdk vai GB, 60s khong bao gio du va se nem TimeoutExpired
+        giua chung -- de lai mot may ao clone hong dang do.
+        """
         src = ["--from", str(source)]
-        self.run("copy", "--name", name, *src)
+        self.run("copy", "--name", name, *src, timeout=timeout)
 
     def remove(self, instance: int | str) -> None:
         self.run("remove", *self._target(instance))

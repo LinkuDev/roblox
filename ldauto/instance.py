@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import adbutils
@@ -53,11 +55,53 @@ class Instance:
 
     # ---------- vong doi ----------
 
-    def start(self, wait: bool = True) -> "Instance":
+    @staticmethod
+    def list_adb_devices() -> list[str]:
+        """Serial cua moi thiet bi ADB dang thay -- de doi chieu khi doan cong sai."""
+        try:
+            return [d.serial for d in adbutils.adb.device_list()]
+        except Exception:
+            return []
+
+    def wait_boot_adb(self, timeout: float = 240.0, poll: float = 3.0) -> None:
+        """Doi Android boot xong bang cach hoi THANG cong ADB.
+
+        `LDConsole.wait_boot` di qua `ldconsole adb --command`, va tang passthrough
+        do im lang tren mot so ban LDPlayer (nhat la ban tieng Trung): Android da
+        san sang tu lau ma lenh van tra ve chuoi rong, nen vong lap poll khong bao
+        gio thoat va chi ket thuc bang TimeoutError. Hoi thang cong ADB bo qua
+        duoc tang do.
+        """
+        deadline = time.monotonic() + timeout
+        last: Exception | None = None
+        while time.monotonic() < deadline:
+            try:
+                adbutils.adb.connect(self.serial, timeout=5.0)
+                dev = adbutils.adb.device(self.serial)
+                if dev.shell("getprop sys.boot_completed", timeout=10).strip() == "1":
+                    self._device = dev
+                    return
+            except Exception as exc:  # cong chua mo, adb chua len, device offline...
+                last = exc
+            time.sleep(poll)
+        raise TimeoutError(
+            f"{self.serial} khong boot xong trong {timeout}s (loi cuoi: {last}). "
+            f"ADB dang thay: {self.list_adb_devices() or 'khong co gi'}"
+        )
+
+    def start(self, wait: bool = True, boot_via: str = "adb") -> "Instance":
+        """Bat may ao va doi den khi dung duoc.
+
+        boot_via='adb'     -- hoi thang cong ADB (mac dinh, do tin cay cao hon)
+        boot_via='console' -- di qua ldconsole, giu lai cho ban nao passthrough on
+        """
         self.console.launch(self.index)
         if wait:
-            self.console.wait_boot(self.index)
-            self.connect()
+            if boot_via == "console":
+                self.console.wait_boot(self.index)
+                self.connect()
+            else:
+                self.wait_boot_adb()
         return self
 
     def stop(self) -> None:
@@ -145,6 +189,181 @@ class Instance:
 
     def stop_app(self, package: str) -> None:
         self.console.kill_app(self.index, package)
+
+    # ---------- app qua ADB (khong di qua ldconsole) ----------
+
+    def list_packages(self, third_party: bool = True) -> list[str]:
+        """Package dang cai. third_party=True bo qua app he thong cho de nhin."""
+        out = self.device.shell(f"pm list packages{' -3' if third_party else ''}")
+        return sorted(
+            line.split(":", 1)[1].strip()
+            for line in out.splitlines()
+            if line.startswith("package:")
+        )
+
+    def find_package(self, keyword: str) -> list[str]:
+        """Tim package theo tu khoa, vd find_package('vpn')."""
+        k = keyword.lower()
+        return [p for p in self.list_packages(third_party=False) if k in p.lower()]
+
+    def start_app_adb(self, package: str) -> None:
+        """Mo app qua ADB thay vi `ldconsole runapp`.
+
+        Dung khi tang passthrough cua ldconsole khong dang tin -- xem
+        wait_boot_adb(). `monkey` tu tim LAUNCHER activity nen khoi phai
+        biet ten activity.
+        """
+        out = self.device.shell(
+            f"monkey -p {package} -c android.intent.category.LAUNCHER 1"
+        )
+        # monkey tra ve exit code 0 ca khi that bai -> phai doc stdout.
+        if "No activities found" in out or "Error" in out or "Exception" in out:
+            raise RuntimeError(f"Khong mo duoc {package}:\n{out.strip()}")
+
+    def stop_app_adb(self, package: str) -> None:
+        self.device.shell(f"am force-stop {package}")
+
+    def is_app_running(self, package: str) -> bool:
+        return bool(self.device.shell(f"pidof {package}").strip())
+
+    def current_app(self) -> str | None:
+        """Package dang o foreground, None neu khong doc duoc.
+
+        Khong nem exception: format dumpsys doi theo phien ban Android, va viec
+        khong doc duoc app dang chay khong dang lam hong ca script.
+        """
+        for cmd, marker in (
+            ("dumpsys activity activities", "mResumedActivity"),
+            ("dumpsys window", "mCurrentFocus"),
+        ):
+            try:
+                for line in self.device.shell(cmd).splitlines():
+                    if marker not in line:
+                        continue
+                    for tok in line.split():
+                        if "/" in tok:
+                            return tok.split("/", 1)[0].lstrip("{")
+            except Exception:
+                continue
+        return None
+
+    # ---------- doc cay giao dien (uiautomator) ----------
+
+    def dump_ui(self) -> str:
+        """XML cay giao dien dang hien.
+
+        On dinh hon nhan dien anh: khong phu thuoc resolution, khong can chup
+        lai anh mau moi khi doi Spec. Doi lai thi cham hon (~1s/lan) va mot so
+        app ve bang canvas/game engine se khong lo ra node nao -- Roblox la
+        vi du, nen phan trong game van phai dung tap_image.
+        """
+        out = self.device.shell("uiautomator dump /sdcard/ui.xml", timeout=30)
+        if "ERROR" in out.upper() or "could not" in out.lower():
+            raise RuntimeError(f"uiautomator dump that bai: {out.strip()}")
+        return self.device.shell("cat /sdcard/ui.xml", timeout=30)
+
+    @staticmethod
+    def _node_center(bounds: str) -> tuple[int, int]:
+        """'[12,34][56,78]' -> (34, 56)"""
+        nums = [int(n) for n in re.findall(r"-?\d+", bounds)]
+        x1, y1, x2, y2 = nums[:4]
+        return (x1 + x2) // 2, (y1 + y2) // 2
+
+    def ui_nodes(self) -> list[dict]:
+        """Moi node co bounds, kem text/desc/id/class de doi chieu."""
+        try:
+            root = ET.fromstring(self.dump_ui())
+        except ET.ParseError as exc:
+            raise RuntimeError(f"XML uiautomator hong: {exc}") from exc
+        nodes = []
+        for n in root.iter("node"):
+            b = n.get("bounds")
+            if not b:
+                continue
+            nodes.append({
+                "text": n.get("text", ""),
+                "desc": n.get("content-desc", ""),
+                "id": n.get("resource-id", ""),
+                "class": n.get("class", ""),
+                "clickable": n.get("clickable") == "true",
+                "bounds": b,
+                "center": self._node_center(b),
+            })
+        return nodes
+
+    def find_node(
+        self,
+        text: str | None = None,
+        desc: str | None = None,
+        res_id: str | None = None,
+        clickable: bool | None = None,
+        exact: bool = False,
+        nodes: list[dict] | None = None,
+    ) -> dict | None:
+        """Tim node dau tien khop. So khong phan biet hoa thuong, mac dinh khop mot phan."""
+        def hit(have: str, want: str) -> bool:
+            return have == want if exact else want.lower() in have.lower()
+
+        for n in nodes if nodes is not None else self.ui_nodes():
+            if text is not None and not hit(n["text"], text):
+                continue
+            if desc is not None and not hit(n["desc"], desc):
+                continue
+            if res_id is not None and not hit(n["id"], res_id):
+                continue
+            if clickable is not None and n["clickable"] != clickable:
+                continue
+            return n
+        return None
+
+    def wait_node(self, timeout: float = 30.0, poll: float = 1.5, **kw) -> dict:
+        deadline = time.monotonic() + timeout
+        last: Exception | None = None
+        while time.monotonic() < deadline:
+            try:
+                n = self.find_node(**kw)
+                if n:
+                    return n
+            except RuntimeError as exc:  # dump loi luc man hinh dang chuyen canh
+                last = exc
+            time.sleep(poll)
+        raise TimeoutError(f"Khong thay node {kw} sau {timeout}s (loi cuoi: {last})")
+
+    def tap_node(self, timeout: float | None = None, **kw) -> bool:
+        """timeout=None -> thu mot lan, False neu khong thay. Co timeout -> doi, nem neu het gio."""
+        n = self.wait_node(timeout=timeout, **kw) if timeout else self.find_node(**kw)
+        if n is None:
+            return False
+        self.tap(*n["center"])
+        return True
+
+    # ---------- VPN ----------
+
+    def vpn_connected(self) -> bool:
+        """Co interface tun khong -- moc that su, khong tin chu tren man hinh.
+
+        App bao 'Connected' ma khong co tun0 nghia la duong ham chua dung duoc.
+        """
+        out = self.device.shell("ip addr", timeout=15)
+        return "tun0" in out or "tun1" in out
+
+    def wait_vpn(self, timeout: float = 90.0, poll: float = 3.0) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.vpn_connected():
+                return
+            time.sleep(poll)
+        raise TimeoutError(f"VPN khong len sau {timeout}s (khong thay interface tun)")
+
+    def grant_vpn(self, package: str) -> bool:
+        """Cho phep app tu dung VPN, bo qua hop thoai xac nhan cua he thong.
+
+        CAN ROOT. LDPlayer bat root duoc bang console.modify(idx, root=True)
+        roi khoi dong lai may ao. Tra ve False neu khong an -- luc do phai bam
+        tay vao nut OK trong hop thoai "Connection request".
+        """
+        out = self.device.shell(f"appops set {package} ACTIVATE_VPN allow")
+        return not out.strip()
 
     def set_proxy(self, ip: str, port: int) -> None:
         """Moi may ao mot IP rieng -- can thiet khi chay farm nhieu tai khoan."""
