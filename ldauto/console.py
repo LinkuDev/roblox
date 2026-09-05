@@ -188,16 +188,27 @@ class LDConsole:
             try:
                 self.run("copy", "--name", name, "--from", str(source), timeout=timeout)
                 return
-            except LDConsoleError:
+            except LDConsoleError as exc:
                 if attempt >= retries:
                     raise
+                # In NGUYEN VAN loi ldconsole tra ve. Truoc day cho nay in
+                # "LDPlayer dang ban" -- do la phong doan cua minh chu khong
+                # phai dieu ldconsole noi, va no che mat ma loi that.
+                first = str(exc).splitlines()[0]
+                print(f"  [{name}] thu {attempt + 1}/{retries} that bai: {first}")
+
+                # Doi TRUOC khi xoa: neu ldconsole dang chep o tien trinh nen
+                # thi xoa ngay se dam vao giua chung. Doi xong ma may ao da
+                # hien ra day du thi coi nhu no chep xong that.
+                time.sleep(retry_delay)
                 leftover = self.find(name)
                 if leftover is not None:
-                    print(f"  [{name}] copy hong dang do -> xoa roi thu lai")
+                    if leftover.width:
+                        print(f"  [{name}] da co may ao ({leftover.width}x{leftover.height}) "
+                              f"-> coi nhu copy da xong o tien trinh nen")
+                        return
+                    print(f"  [{name}] con lai ban hong dang do -> xoa roi thu lai")
                     self.remove(name)
-                print(f"  [{name}] LDPlayer dang ban, doi {retry_delay:.0f}s "
-                      f"roi thu lai ({attempt + 1}/{retries})")
-                time.sleep(retry_delay)
 
     def remove(self, instance: int | str) -> None:
         self.run("remove", *self._target(instance))
