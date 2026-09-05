@@ -70,9 +70,9 @@ CHROME = (40, 90)            # vien + tieu de + cot cong cu, chi dung khi do hut
 
 # --- Man xac minh tuoi sau khi Roblox mo ---------------------------------
 # Toa do pixel, dung cho man hinh 400x500. Doi do phan giai la phai do lai het.
-ROBLOX_SETTLE = 10           # giay cho Roblox ve xong truoc khi bam
+ROBLOX_SETTLE = 15           # giay cho Roblox ve xong truoc khi bam
 CONTINUE_BTN = (201, 322)    # nut Continue cua "Free item with an age check"
-AFTER_CONTINUE = 3           # giay cho banh xe chon ngay hien ra
+AFTER_CONTINUE = 5           # giay cho banh xe chon ngay hien ra
 
 WHEELS = {                   # ba banh xe chon ngay sinh
     "thang": (107, 244),
@@ -86,18 +86,22 @@ SCROLL_DY = {
     "ngay":  -60,
     "nam":    60,
 }
-SCROLL_PAUSE = 0.25          # giay nghi giua hai cu vuot
+SCROLL_PAUSE = 0.35          # giay nghi giua hai cu vuot
 SCROLLS = {                  # so nac ngau nhien cho tung banh xe
     "thang": (1, 11),
     "ngay":  (1, 11),
     "nam":   (15, 20),
 }
-AFTER_WHEELS = 2             # giay cho sau khi cuon xong
+AFTER_WHEELS = 4             # giay cho sau khi cuon xong
 SUBMIT_BTN = (197, 394)      # nut xac nhan duoi man chon ngay sinh
+# Cho man dang ky ve XONG sau khi xac nhan ngay sinh. Truoc day khong co buoc
+# cho nao o day: bam xac nhan xong la bam ngay o username, trong khi man hinh
+# con dang chuyen -> cu bam roi vao khoang khong.
+AFTER_SUBMIT = 12
 
 # --- Man dang ky sau khi qua xac minh tuoi -------------------------------
 # Cung he toa do 400x500 nhu tren.
-STEP_PAUSE = 2               # giay giua moi thao tac
+STEP_PAUSE = 3               # giay giua moi thao tac
 USERNAME_FIELD = (201, 266)
 GENDER_FEMALE = (113, 290)   # icon ben trai
 GENDER_MALE = (288, 290)     # icon ben phai
@@ -105,11 +109,24 @@ SIGNUP_CONTINUE = (200, 381)
 
 # --- Man "Create Account" / tao mat khau ---------------------------------
 # Sau khi bam Continue, Roblox mat mot luc moi ve xong man nay.
-PASSWORD_WAIT = 15
+PASSWORD_WAIT = 18
 # Man nay tu focus san vao o mat khau -> go thang, khong can bam truoc.
 # Nut Done. Toa do UOC LUONG tu anh chup, chua do tren may that -- xem chu
 # thich trong flow(). Nut cao ~40px nen lech 10-15px van trung.
 DONE_BTN = (200, 370)
+
+# Nhan chung cho MOI moc cho ben duoi (--slow). May yeu hoac chay nhieu may ao
+# thi moi thu deu cham di theo cung mot ty le, khong can sua tung hang so.
+SLOW = 1.0
+
+
+def pause(seconds: float, log: Log | None = None, why: str = "") -> None:
+    """time.sleep co nhan he so SLOW, va tinh luon ca Ctrl+C."""
+    t = seconds * SLOW
+    if log and why:
+        log(f"cho {t:.0f}s {why}")
+    STOP.wait(t)
+
 
 # --- Vong lap -------------------------------------------------------------
 ROUNDS = 0                   # 0 = chay khong gioi han, Ctrl+C de dung
@@ -261,12 +278,11 @@ def one_round(inst: Instance, log: Log) -> str:
     #    Bam theo toa do pixel chu khong qua uiautomator: Roblox ve bang engine
     #    rieng nen khong lo ra node nao de tim. Doi lai, toa do chi dung o dung
     #    do phan giai da do -- ca 4 may deu 400x500 nen dung chung duoc.
-    log(f"doi {ROBLOX_SETTLE}s cho Roblox ve xong...")
-    time.sleep(ROBLOX_SETTLE)
+    pause(ROBLOX_SETTLE, log, "cho Roblox ve xong")
 
     log(f"bam Continue tai {CONTINUE_BTN}")
     inst.tap(*CONTINUE_BTN)
-    time.sleep(AFTER_CONTINUE)
+    pause(AFTER_CONTINUE, log, "cho banh xe chon ngay hien ra")
 
     # Moi may mot ngay sinh khac nhau: 4 tai khoan cung ngay sinh la mot dau
     # hieu de nhan ra chung di cung mot nhom.
@@ -274,11 +290,12 @@ def one_round(inst: Instance, log: Log) -> str:
         times = random.randint(*SCROLLS[name])
         dy = SCROLL_DY[name]
         log(f"banh xe {name} tai ({x}, {y}): cuon {times} nac, dy={dy}")
-        inst.scroll(x, y, times=times, dy=dy, pause=SCROLL_PAUSE)
+        inst.scroll(x, y, times=times, dy=dy, pause=SCROLL_PAUSE * SLOW)
 
-    time.sleep(AFTER_WHEELS)
+    pause(AFTER_WHEELS, log, "sau khi cuon xong")
     log(f"bam xac nhan tai {SUBMIT_BTN}")
     inst.tap(*SUBMIT_BTN)
+    pause(AFTER_SUBMIT, log, "cho man dang ky ve xong")
 
     lap("xong man xac minh tuoi")
 
@@ -291,19 +308,19 @@ def one_round(inst: Instance, log: Log) -> str:
 
     log(f"bam o username tai {USERNAME_FIELD}")
     inst.tap(*USERNAME_FIELD)
-    time.sleep(STEP_PAUSE)
+    pause(STEP_PAUSE)
 
     inst.text(acc.username)
-    time.sleep(STEP_PAUSE)
+    pause(STEP_PAUSE)
 
     gender, pos = random.choice([("nu", GENDER_FEMALE), ("nam", GENDER_MALE)])
     log(f"gioi tinh: {gender} tai {pos}")
     inst.tap(*pos)
-    time.sleep(STEP_PAUSE)
+    pause(STEP_PAUSE)
 
     log(f"bam Continue tai {SIGNUP_CONTINUE}")
     inst.tap(*SIGNUP_CONTINUE)
-    time.sleep(STEP_PAUSE)
+    pause(STEP_PAUSE)
 
     STORE.update(acc.username, gender=gender, status="username_set")
     lap(f"xong man dang ky ({acc.username})")
@@ -311,16 +328,15 @@ def one_round(inst: Instance, log: Log) -> str:
     # 7. Man "Create Account": nhap mat khau roi bam Done.
     #    Mat khau sinh ra da thoa ca ba luat man hinh nay kiem: >= 8 ky tu,
     #    khong don gian, khong trung username (xem random_password()).
-    log(f"doi {PASSWORD_WAIT}s cho man tao mat khau...")
-    time.sleep(PASSWORD_WAIT)
+    pause(PASSWORD_WAIT, log, "cho man tao mat khau")
 
     log(f"go mat khau ({len(acc.password)} ky tu)")
     inst.text(acc.password)
-    time.sleep(STEP_PAUSE)
+    pause(STEP_PAUSE)
 
     log(f"bam Done tai {DONE_BTN}")
     inst.tap(*DONE_BTN)
-    time.sleep(STEP_PAUSE)
+    pause(STEP_PAUSE)
 
     # "submitted" = da bam het cac nut, KHONG phai "tao tai khoan thanh cong".
     # Chua co buoc nao doc man hinh de xac nhan Roblox chap nhan.
@@ -422,7 +438,7 @@ def build_instances(console: LDConsole, do_clone: bool) -> list[Instance]:
 def main() -> int:
     # Khai bao o dau ham: Python doi `global` phai dung TRUOC moi lan dung ten
     # do trong ham, ma ROUNDS/ROUND_PAUSE con duoc dung lam default cho argparse.
-    global STORE, ROUNDS, ROUND_PAUSE
+    global STORE, ROUNDS, ROUND_PAUSE, SLOW
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--clone", action="store_true", help="clone cho du 4 may truoc khi chay")
@@ -438,6 +454,8 @@ def main() -> int:
     ap.add_argument("--round-pause", type=float, default=ROUND_PAUSE,
                     help=f"giay cho sau khi bam Done truoc khi tat may ao "
                          f"(mac dinh {ROUND_PAUSE})")
+    ap.add_argument("--slow", type=float, default=SLOW, metavar="HESO",
+                    help="nhan moi moc cho voi he so nay (vd 1.5 = cho lau hon 50%%)")
     ap.add_argument("--db", default=DB_PATH,
                     help=f"file SQLite giu username/password (mac dinh {DB_PATH})")
     ap.add_argument("--stagger", type=float, default=STAGGER)
@@ -470,7 +488,9 @@ def main() -> int:
 
     console = LDConsole(args.ldconsole)
 
-    ROUNDS, ROUND_PAUSE = args.rounds, args.round_pause
+    ROUNDS, ROUND_PAUSE, SLOW = args.rounds, args.round_pause, args.slow
+    if SLOW != 1.0:
+        print(f"He so cho: x{SLOW}")
     STORE = AccountStore(args.db)
     print(f"Kho tai khoan: {args.db} (dang co {STORE.count()} ban ghi)")
 
