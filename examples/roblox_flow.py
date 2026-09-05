@@ -387,10 +387,13 @@ def one_round(inst: Instance, log: Log) -> str:
                          status="done")
             log(f"cookie OK, verify: {info['name']} (id={info['id']})")
         elif info:
-            # Cookie song nhung username khac -> may login nham acc khac.
-            STORE.update(acc.username, cookie=ensure_warning_prefix(ck),
-                         note=f"cookie thuoc {info['name']}", status="mismatch")
-            log(f"CANH BAO: cookie thuoc {info['name']}, khong phai {acc.username}")
+            # Cookie song nhung username KHAC -> may dang login acc cu (thuong do
+            # clone giu session may goc, hoac dang ky moi that bai). Acc vua sinh
+            # coi nhu CHUA TAO DUOC -> xoa han ban ghi user/pass do, no vo nghia.
+            log(f"CANH BAO: cookie thuoc {info['name']}, khong phai {acc.username} "
+                f"-> xoa ban ghi (coi nhu chua tao duoc)")
+            STORE.delete(acc.username)
+            return None
         else:
             STORE.update(acc.username, cookie=ensure_warning_prefix(ck),
                          status="cookie_unverified")
@@ -423,7 +426,9 @@ def flow(inst: Instance, log: Log) -> None:
         n += 1
         log(f"===== vong {n}" + (f"/{ROUNDS}" if ROUNDS else "") + " =====")
         try:
-            made.append(one_round(inst, log))
+            uname = one_round(inst, log)
+            if uname:                      # None = mismatch, acc da bi xoa
+                made.append(uname)
             fails = 0
         except Exception as exc:
             fails += 1

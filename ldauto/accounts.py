@@ -181,6 +181,12 @@ class AccountStore:
 
     # ---------- doc ----------
 
+    def delete(self, username: str) -> None:
+        """Xoa han mot ban ghi. Dung khi acc coi nhu chua tao duoc."""
+        with self._lock:
+            self._db.execute("DELETE FROM accounts WHERE username=?", (username,))
+            self._db.commit()
+
     def get(self, username: str) -> sqlite3.Row | None:
         with self._lock:
             cur = self._db.execute(
