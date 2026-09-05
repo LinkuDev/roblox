@@ -1,17 +1,22 @@
 @echo off
 REM ============================================================
-REM Dong goi main.py -> RobloxFarm.exe
-REM Chay tren Windows, sau khi: pip install -r requirements.txt
+REM Dong goi main.py -> RobloxFarm.exe   (chay tren Windows)
 REM ============================================================
 
-REM B1: CAP NHAT PyInstaller. Ban cu bi loi "tuple index out of range"
-REM     khi quet bytecode -- day la bug cua PyInstaller, khong phai code.
-pip install -U pyinstaller pyinstaller-hooks-contrib
+REM B1: EP nang PyInstaller len ban moi. Loi "tuple index out of range" la bug
+REM     cua PyInstaller cu khi disassemble bytecode -- ban 6.x da vá.
+python -m pip install --upgrade --force-reinstall pyinstaller pyinstaller-hooks-contrib
+echo.
+echo --- Phien ban PyInstaller (phai >= 6.0) ---
+pyinstaller --version
+echo.
 
 REM B2: Dong goi.
-REM   - Khong dung --collect-submodules ldauto (chinh no kich hoat cai bug quet
-REM     bytecode). Thay bang liet ke tay 7 module cua ldauto -- an toan hon.
-REM   - --clean: xoa cache build cu, tranh loi vat vuong.
+REM   - KHONG --collect-all adbutils: no keo ca apkutils2 (phan tich APK, minh
+REM     KHONG dung) -- chinh module do lam PyInstaller vo khi quet bytecode.
+REM     Chi lay binary (adb.exe) + data cua adbutils la du de connect/shell/pull.
+REM   - --exclude-module apkutils2/apkutils: chan han khong cho quet.
+REM   - Liet ke tay 7 module ldauto vi ldauto dung lazy import.
 pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --paths examples ^
   --hidden-import roblox_flow ^
@@ -22,7 +27,11 @@ pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --hidden-import ldauto.accounts ^
   --hidden-import ldauto.cookie ^
   --hidden-import ldauto.window ^
-  --collect-all adbutils ^
+  --hidden-import adbutils ^
+  --collect-binaries adbutils ^
+  --collect-data adbutils ^
+  --exclude-module apkutils2 ^
+  --exclude-module apkutils ^
   main.py
 
 echo.
