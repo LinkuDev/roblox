@@ -530,7 +530,9 @@ def main() -> int:
     if SLOW != 1.0:
         print(f"He so cho: x{SLOW}")
     STORE = AccountStore(args.db)
-    print(f"Kho tai khoan: {args.db} (dang co {STORE.count()} ban ghi)")
+    import os as _os
+    print(f"Kho tai khoan: {_os.path.abspath(args.db)} "
+          f"(dang co {STORE.count()} ban ghi)")
 
     if not args.no_tune:
         # Bot tai chung cho ca LDPlayer: 4 may ao boot cung luc la nghen dia va

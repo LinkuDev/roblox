@@ -5,6 +5,7 @@
     python examples/xuat_txt.py --all                  # xuat ca acc chua co cookie
 """
 
+import os
 import sqlite3
 import sys
 
@@ -18,11 +19,26 @@ def main() -> int:
     db = args[0] if len(args) > 0 else "accounts.db"
     out = args[1] if len(args) > 1 else "acc.txt"
 
-    con = sqlite3.connect(db)
+    if not os.path.exists(db):
+        print(f"[!] Khong thay file DB: {os.path.abspath(db)}")
+        print("    accounts.db duoc tao boi roblox_flow.py o THU MUC ban chay lenh do.")
+        print("    Tim no tren Windows:   dir /s /b accounts.db")
+        print("    Roi chi ro:            python examples\\xuat_txt.py <duong_dan_day_du> acc.txt")
+        return 1
+
+    print(f"Doc DB: {os.path.abspath(db)}")
+    # mode=rw (uri): KHONG tu tao DB rong neu path sai -- de loi ro rang.
+    con = sqlite3.connect(f"file:{db}?mode=rw", uri=True)
     con.row_factory = sqlite3.Row
-    rows = con.execute(
-        "SELECT username, password, cookie FROM accounts ORDER BY id").fetchall()
-    con.close()
+    try:
+        rows = con.execute(
+            "SELECT username, password, cookie FROM accounts ORDER BY id").fetchall()
+    except sqlite3.OperationalError as e:
+        print(f"[!] Doc bang 'accounts' that bai: {e}")
+        print("    File nay khong phai accounts.db cua roblox_flow (thieu bang).")
+        return 1
+    finally:
+        con.close()
 
     lines = []
     bo_qua = 0
