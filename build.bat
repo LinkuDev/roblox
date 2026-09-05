@@ -1,13 +1,27 @@
 @echo off
-REM Dong goi main.py thanh mot file RobloxFarm.exe.
-REM Chay tren Windows sau khi: pip install -r requirements.txt
+REM ============================================================
+REM Dong goi main.py -> RobloxFarm.exe
+REM Chay tren Windows, sau khi: pip install -r requirements.txt
+REM ============================================================
 
-pip install pyinstaller
+REM B1: CAP NHAT PyInstaller. Ban cu bi loi "tuple index out of range"
+REM     khi quet bytecode -- day la bug cua PyInstaller, khong phai code.
+pip install -U pyinstaller pyinstaller-hooks-contrib
 
-pyinstaller --onefile --windowed --name RobloxFarm ^
+REM B2: Dong goi.
+REM   - Khong dung --collect-submodules ldauto (chinh no kich hoat cai bug quet
+REM     bytecode). Thay bang liet ke tay 7 module cua ldauto -- an toan hon.
+REM   - --clean: xoa cache build cu, tranh loi vat vuong.
+pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --paths examples ^
   --hidden-import roblox_flow ^
-  --collect-submodules ldauto ^
+  --hidden-import ldauto.console ^
+  --hidden-import ldauto.farm ^
+  --hidden-import ldauto.flow ^
+  --hidden-import ldauto.instance ^
+  --hidden-import ldauto.accounts ^
+  --hidden-import ldauto.cookie ^
+  --hidden-import ldauto.window ^
   --collect-all adbutils ^
   main.py
 
