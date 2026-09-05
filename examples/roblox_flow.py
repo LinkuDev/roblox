@@ -496,6 +496,63 @@ def build_instances(console: LDConsole, do_clone: bool = False) -> list[Instance
     return instances
 
 
+def run_farm(console: LDConsole, *, do_clone: bool = False, arrange: bool = True,
+             clear_mode: str = "all", reuse: bool = False,
+             stagger: float | None = None) -> list:
+    """Toan bo orchestration dung CHUNG cho CLI (main) va GUI (main.py).
+
+    Cac global cau hinh (STORE, ROUNDS, ROUND_PAUSE, SLOW, CLONES) phai duoc dat
+    TRUOC khi goi. Tach ra day de nut Start cua GUI chay Y HET script.
+
+    clear_mode: 'all' xoa Roblox tren moi may | 'clones' chi clone | 'none' khong
+                xoa. Xoa de moi vong la mot phien dang nhap sach.
+    """
+    instances = build_instances(console, do_clone)
+
+    if arrange:
+        for slot, inst in enumerate(instances):
+            WINDOW_SLOT[inst.index] = slot
+        print(f"Xep cua so: {WINDOW_COLS} cot, moi may mot o")
+
+    CLEAR_ROBLOX_ON.clear()
+    if clear_mode == "none":
+        print("Khong xoa du lieu Roblox")
+    elif clear_mode == "clones":
+        CLEAR_ROBLOX_ON.update(i.index for i in instances[1:])
+        print(f"Se xoa {ROBLOX_PKG} tren clone {sorted(CLEAR_ROBLOX_ON)}")
+    else:
+        CLEAR_ROBLOX_ON.update(i.index for i in instances)
+        print(f"Se xoa {ROBLOX_PKG} tren may {sorted(CLEAR_ROBLOX_ON)}")
+    print()
+
+    if not reuse:
+        running = [i for i in instances if console.is_running(i.index)]
+        if running:
+            print(f"Tat {len(running)} may ao dang chay truoc khi bat lai...")
+            for i in running:
+                console.quit(i.index)
+            for i in running:
+                # Mot may khong tat duoc khong keo do ca run.
+                try:
+                    console.wait_stopped(i.index, timeout=90, settle=0)
+                except TimeoutError:
+                    console.quit(i.index)
+                    print(f"[{i.index}] khong tat trong 90s -> bo qua")
+            print("da tat xong\n")
+
+    print(f"Vong lap: {ROUNDS or 'khong gioi han'} vong/may ao, "
+          f"cho {ROUND_PAUSE:.0f}s sau khi bam Done")
+
+    t0 = time.monotonic()
+    results = run_parallel(instances, flow,
+                           stagger=STAGGER if stagger is None else stagger)
+    print(f"\nTong thoi gian: {time.monotonic() - t0:.0f}s")
+    print(f"Kho tai khoan: {STORE.count()} ban ghi "
+          f"({STORE.count('submitted')} da bam het, "
+          f"{STORE.count('new') + STORE.count('username_set')} do dang)")
+    return results
+
+
 def main() -> int:
     # Khai bao o dau ham: Python doi `global` phai dung TRUOC moi lan dung ten
     # do trong ham, ma ROUNDS/ROUND_PAUSE con duoc dung lam default cho argparse.
@@ -601,51 +658,12 @@ def main() -> int:
             print("   chac chan hon anh mau nhieu, va khong phu thuoc do phan giai.")
         return 0
 
-    instances = build_instances(console, args.clone)
-
-    if not args.no_arrange:
-        for slot, inst in enumerate(instances):
-            WINDOW_SLOT[inst.index] = slot
-        print(f"Xep cua so: {WINDOW_COLS} cot, moi may mot o "
-              f"(be rong do luc chay, khong dat cung)")
-
-    # Mac dinh XOA tren moi may: moi lan chay la mot phien Roblox sach. Muon
-    # giu thi phai noi ro bang co.
-    if args.keep_roblox_data:
-        print("Khong xoa du lieu Roblox (--keep-roblox-data)")
-    elif args.clear_clones:
-        # instances[0] la may goc.
-        CLEAR_ROBLOX_ON.update(i.index for i in instances[1:])
-        print(f"Se xoa {ROBLOX_PKG} tren clone {sorted(CLEAR_ROBLOX_ON)} "
-              f"(chi app nay, khong dung {VPN_PKG})")
-    else:
-        CLEAR_ROBLOX_ON.update(i.index for i in instances)
-        print(f"Se xoa {ROBLOX_PKG} tren may {sorted(CLEAR_ROBLOX_ON)} "
-              f"(chi app nay, khong dung {VPN_PKG})")
-    print()
-
-    # Tat dong loat TRUOC khi vao vong song song. `quit` re va khong ton CPU,
-    # nen khong can gian cach; de trong flow() thi moi thread phai doi luot
-    # stagger cua minh roi moi bat dau tat -- cong them ca phut vo ich.
-    if not args.reuse:
-        running = [i for i in instances if console.is_running(i.index)]
-        if running:
-            print(f"Tat {len(running)} may ao dang chay truoc khi bat lai...")
-            for i in running:
-                console.quit(i.index)
-            for i in running:
-                # settle=0: cho them giay chi can truoc khi COPY o dia, con bat
-                # lai thi khong.
-                console.wait_stopped(i.index, settle=0)
-            print("da tat xong\n")
-
-    print(f"Vong lap: {ROUNDS or 'khong gioi han'} vong/may ao, "
-          f"cho {ROUND_PAUSE:.0f}s sau khi bam Done" +
-          ("" if ROUNDS else "  (Ctrl+C de dung)"))
-
-    t_start = time.monotonic()
+    clear_mode = ("none" if args.keep_roblox_data
+                  else "clones" if args.clear_clones else "all")
     try:
-        results = run_parallel(instances, flow, stagger=args.stagger)
+        results = run_farm(console, do_clone=args.clone,
+                           arrange=not args.no_arrange, clear_mode=clear_mode,
+                           reuse=args.reuse, stagger=args.stagger)
     except KeyboardInterrupt:
         # Bao cac thread dung SAU khi xong vong hien tai. Cat ngang giua chung
         # se bo lai may ao dang bat va mot ban ghi tai khoan do dang.
@@ -653,12 +671,6 @@ def main() -> int:
         print("\n\nCtrl+C -- cho cac may ao xong vong hien tai roi dung...")
         print("(Ctrl+C lan nua de thoat ngay, may ao se con bat)")
         return 130
-
-    dt = time.monotonic() - t_start
-    print(f"\nTong thoi gian: {dt:.0f}s")
-    print(f"Kho tai khoan: {STORE.count()} ban ghi "
-          f"({STORE.count('submitted')} da bam het, "
-          f"{STORE.count('new') + STORE.count('username_set')} do dang)")
     return report(results)
 
 

@@ -187,7 +187,6 @@ class App:
         rf.LDCONSOLE = self.var_ld.get()
         rf.CLONES = self.var_clones.get()
         rf.ROUNDS = self.var_rounds.get()
-        rf.ROUND_PAUSE = 5
         rf.SLOW = self.var_slow.get()
 
         self._set_config_state("disabled")
@@ -223,18 +222,9 @@ class App:
                 f"({rf.STORE.count()} ban ghi)")
             console.global_setting(fps=30, audio=False, fast_play=True)
 
-            instances = rf.build_instances(console)
-            for slot, inst in enumerate(instances):
-                rf.WINDOW_SLOT[inst.index] = slot
-
-            # tat may ao dang chay truoc vong song song
-            running = [i for i in instances if console.is_running(i.index)]
-            for i in running:
-                console.quit(i.index)
-            for i in running:
-                console.wait_stopped(i.index, settle=0)
-
-            results = rf.run_parallel(instances, rf.flow, stagger=rf.STAGGER)
+            # Goi dung ham ma script dung -> Start chay Y HET python roblox_flow.py
+            # (mac dinh: xoa Roblox moi vong, xep cua so, tat may dang chay truoc).
+            results = rf.run_farm(console)
             rf.report(results)
             log("=== da dung tat ca luong ===")
         except Exception as exc:
