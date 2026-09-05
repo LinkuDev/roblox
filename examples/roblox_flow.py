@@ -51,9 +51,9 @@ def status_says_on(text: str) -> bool:
     return bool(VPN_ON_RE.search(text)) and not VPN_OFF_RE.search(text)
 
 
-# Index nao can xoa du lieu Roblox truoc khi mo. Dat trong main(): clone luon
-# duoc xoa (khong thi 4 may dung chung mot phien dang nhap), may goc thi khong
-# -- do la may ban dung tay, xoa la mat du lieu that.
+# Index nao can xoa du lieu Roblox truoc khi mo. Mac dinh la TAT CA: clone thua
+# nguyen phien dang nhap cua may goc, khong xoa thi ca 4 may dung chung mot tai
+# khoan. --clear-clones de chua may goc ra, --keep-roblox-data de khong xoa gi.
 CLEAR_ROBLOX_ON: set[int] = set()
 REUSE = False                # --reuse: dung tiep may ao dang chay
 
@@ -247,12 +247,10 @@ def main() -> int:
                     help="mo ExpressVPN tren may goc va in cay giao dien roi thoat")
     ap.add_argument("--ldconsole", default=LDCONSOLE)
     ap.add_argument("--stagger", type=float, default=STAGGER)
-    ap.add_argument("--clear-roblox", action="store_true",
-                    help="xoa du lieu Roblox tren MOI may, ke ca may goc")
     ap.add_argument("--clear-clones", action="store_true",
-                    help="xoa du lieu Roblox tren clone, giu nguyen may goc")
+                    help="chi xoa du lieu Roblox tren clone, giu nguyen may goc")
     ap.add_argument("--keep-roblox-data", action="store_true",
-                    help="khong xoa gi, ke ca tren clone moi tao")
+                    help="khong xoa du lieu Roblox tren may nao ca")
     ap.add_argument("--no-arrange", action="store_true",
                     help="khong keo cua so, de LDPlayer tu dat")
     ap.add_argument("--list-windows", action="store_true",
@@ -298,15 +296,17 @@ def main() -> int:
         print(f"Xep cua so: {WINDOW_COLS} cot, moi may mot o "
               f"(be rong do luc chay, khong dat cung)")
 
+    # Mac dinh XOA tren moi may: moi lan chay la mot phien Roblox sach. Muon
+    # giu thi phai noi ro bang co.
     if args.keep_roblox_data:
-        pass
-    elif args.clear_roblox:
-        CLEAR_ROBLOX_ON.update(i.index for i in instances)
-        print(f"Se xoa du lieu Roblox tren TAT CA: {sorted(CLEAR_ROBLOX_ON)}")
-    elif args.clear_clones or args.clone:
-        # instances[0] la may goc -- khong dung toi. Chi clone moi xoa.
+        print("Khong xoa du lieu Roblox (--keep-roblox-data)")
+    elif args.clear_clones:
+        # instances[0] la may goc.
         CLEAR_ROBLOX_ON.update(i.index for i in instances[1:])
-        print(f"Se xoa du lieu Roblox tren clone moi: {sorted(CLEAR_ROBLOX_ON)}")
+        print(f"Se xoa du lieu Roblox tren clone: {sorted(CLEAR_ROBLOX_ON)}")
+    else:
+        CLEAR_ROBLOX_ON.update(i.index for i in instances)
+        print(f"Se xoa du lieu Roblox tren tat ca: {sorted(CLEAR_ROBLOX_ON)}")
     print()
 
     # Tat dong loat TRUOC khi vao vong song song. `quit` re va khong ton CPU,
