@@ -21,6 +21,17 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "examples"))
 
+
+def app_dir() -> Path:
+    """Thu muc de dat file du lieu (accounts.db, file xuat...).
+
+    Khi dong goi thanh .exe (PyInstaller): thu muc CHUA exe -- nen DB nam ngang
+    hang voi exe, khong phai thu muc tam _MEIPASS. Khi chay python: canh main.py.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return ROOT
+
 import roblox_flow as rf  # noqa: E402
 from ldauto import AccountStore, ensure_warning_prefix  # noqa: E402
 
@@ -94,6 +105,9 @@ class App:
         root.geometry("760x560")
 
         self.log_q: queue.Queue[str] = queue.Queue()
+        # Redirect ngay: che do --windowed cua PyInstaller co sys.stdout = None,
+        # moi print()/Log se loi neu khong huong ve queue. Giu suot doi app.
+        sys.stdout = sys.stderr = _QueueWriter(self.log_q)
         self.worker: threading.Thread | None = None
         self.restart_pending = False   # dat khi bam Chay lai luc dang chay
 
@@ -111,7 +125,7 @@ class App:
         f.pack(fill="x", padx=8, pady=6)
 
         self.var_ld = tk.StringVar(value=rf.LDCONSOLE)
-        self.var_db = tk.StringVar(value="accounts.db")
+        self.var_db = tk.StringVar(value=str(app_dir() / "accounts.db"))
         self.var_rounds = tk.IntVar(value=0)
         self.var_clones = tk.IntVar(value=rf.CLONES)
         self.var_slow = tk.DoubleVar(value=1.0)
@@ -212,8 +226,6 @@ class App:
 
     def _run(self):
         """Chay trong thread nen -- KHONG dung tkinter o day."""
-        old_out, old_err = sys.stdout, sys.stderr
-        sys.stdout = sys.stderr = _QueueWriter(self.log_q)  # bat moi print + log
         log = rf.Log("main")
         try:
             console = rf.LDConsole(self.var_ld.get())
@@ -229,8 +241,6 @@ class App:
             log("=== da dung tat ca luong ===")
         except Exception as exc:
             log(f"LOI: {type(exc).__name__}: {exc}")
-        finally:
-            sys.stdout, sys.stderr = old_out, old_err
 
     def _export(self):
         db = self.var_db.get()
@@ -239,7 +249,8 @@ class App:
             return
         out = filedialog.asksaveasfilename(
             title="Luu file txt", defaultextension=".txt",
-            initialfile="acc.txt", filetypes=[("Text", "*.txt")])
+            initialdir=str(app_dir()), initialfile="acc.txt",
+            filetypes=[("Text", "*.txt")])
         if not out:
             return
         try:
