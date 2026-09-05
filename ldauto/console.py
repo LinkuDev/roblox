@@ -153,15 +153,40 @@ class LDConsole:
     def create(self, name: str) -> None:
         self.run("add", "--name", name)
 
-    def copy_from(self, name: str, source: int | str, timeout: float = 1800.0) -> None:
+    def copy_from(
+        self,
+        name: str,
+        source: int | str,
+        timeout: float = 1800.0,
+        retries: int = 8,
+        retry_delay: float = 30.0,
+    ) -> None:
         """Nhan ban tu may ao co san -- nhanh hon `create` vi khoi cai lai app.
 
-        timeout mac dinh 30 phut chu khong phai 60s cua run(): lenh nay phai chep
-        nguyen file .vmdk vai GB, 60s khong bao gio du va se nem TimeoutExpired
-        giua chung -- de lai mot may ao clone hong dang do.
+        LDPlayer chep o TIEN TRINH NEN: lenh nay tra ve gan nhu tuc thi (0s) roi
+        van con chep tiep vai GB phia sau. Goi copy thu hai trong luc do bi tu
+        choi bang rc=3, khong kem thong bao nao. Khong co lenh nao hoi duoc
+        "chep xong chua", nen cach chac an la thu lai co cho.
+
+        Lan thu that bai co the de lai mot clone hong dang do mang dung ten
+        `name`; phai xoa truoc khi thu lai, neu khong lan sau se bao trung ten.
+        Chi xoa duoc an toan vi `name` la ten clone moi -- Farm.ensure() da xac
+        nhan no chua ton tai truoc khi goi vao day.
         """
-        src = ["--from", str(source)]
-        self.run("copy", "--name", name, *src, timeout=timeout)
+        for attempt in range(retries + 1):
+            try:
+                self.run("copy", "--name", name, "--from", str(source), timeout=timeout)
+                return
+            except LDConsoleError:
+                if attempt >= retries:
+                    raise
+                leftover = self.find(name)
+                if leftover is not None:
+                    print(f"  [{name}] copy hong dang do -> xoa roi thu lai")
+                    self.remove(name)
+                print(f"  [{name}] LDPlayer dang ban, doi {retry_delay:.0f}s "
+                      f"roi thu lai ({attempt + 1}/{retries})")
+                time.sleep(retry_delay)
 
     def remove(self, instance: int | str) -> None:
         self.run("remove", *self._target(instance))
