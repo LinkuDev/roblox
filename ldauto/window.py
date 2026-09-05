@@ -130,8 +130,13 @@ def place(
     width: int | None = None,
     height: int | None = None,
 ) -> bool:
-    """Dat cua so tim theo tieu de. Kem chac hon place_hwnd -- tieu de cua so
-    LDPlayer la ten APP dang mo, khong phai ten may ao."""
+    """Dat cua so tim theo tieu de.
+
+    Tieu de cua so LDPlayer chinh la ten may ao ('bot0', 'roblox'...), nen cach
+    nay chay duoc. Van nen dung place_hwnd khi co handle: khop chuoi con mo ho
+    ('bot1' nam trong 'bot10'), va may ao dang tat thi khong co cua so nao de
+    khop ca -- trong khi list2 dua thang handle, khong phai doan gi.
+    """
     hwnd = find(title)
     return place_hwnd(hwnd, x, y, width, height) if hwnd else False
 

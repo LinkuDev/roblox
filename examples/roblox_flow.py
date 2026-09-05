@@ -140,9 +140,10 @@ def flow(inst: Instance, log: Log) -> None:
     inst.start() if REUSE else inst.restart(log)
     log(f"san sang -> {inst.serial}")
 
-    # 1b. keo cua so ve o cua no. Lay handle tu list2 chu khong do theo tieu de:
-    #     tieu de cua so LDPlayer la ten app dang mo ('Roblox'), khong phai ten
-    #     may ao. Phai doc SAU khi may ao bat xong -- luc tat handle bang 0.
+    # 1b. keo cua so ve o cua no. Dung handle tu list2 chu khong do theo tieu de:
+    #     tieu de DUNG la ten may ao, nhung khop chuoi con mo ho ('bot1' nam
+    #     trong 'bot10'). list2 dua thang handle nen khong phai doan.
+    #     Phai doc SAU khi may ao bat xong -- luc tat handle bang 0.
     slot = WINDOW_SLOT.get(inst.index)
     if slot is not None:
         info = inst.console.find(inst.index)
