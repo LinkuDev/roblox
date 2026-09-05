@@ -30,8 +30,8 @@ VPN_PKG = "com.expressvpn.vpn"
 ROBLOX_PKG = "com.roblox.client"
 
 CPU, MEMORY, CPU_LIMIT = 2, 2048, 60
-STAGGER = 8                # giay giua moi may khi bat -- 4 may cung luc se nghen
-AUTOCONNECT_WAIT = 6       # giay doi ExpressVPN tu noi lai truoc khi can thiep
+STAGGER = 5                # giay giua moi may khi bat -- 4 may cung luc se nghen
+AUTOCONNECT_WAIT = 30      # giay doi ExpressVPN tu noi lai truoc khi can thiep
 RESOLUTION = None          # None = giu nguyen theo may goc
 
 # Nut Connect cua ExpressVPN, lay tu --dump-ui. Day la TOGGLE: bam khi dang bat
@@ -77,7 +77,14 @@ WHEELS = {                   # ba banh xe chon ngay sinh
     "ngay":  (217, 244),
     "nam":   (313, 244),
 }
-SCROLL_DY = 60               # pixel moi nac cuon
+# Pixel moi nac, co dau: duong = ngon tay di XUONG. Thang va ngay nguoc chieu
+# nam -- khong suy ra duoc tu ly thuyet, phai chay roi nhin.
+SCROLL_DY = {
+    "thang": -60,
+    "ngay":  -60,
+    "nam":    60,
+}
+SCROLL_PAUSE = 0.25          # giay nghi giua hai cu vuot
 SCROLLS = {                  # so nac ngau nhien cho tung banh xe
     "thang": (1, 11),
     "ngay":  (1, 11),
@@ -98,11 +105,15 @@ def connect_vpn(inst: Instance, log: Log) -> None:
     # vai chuc giay. Kiem tra mot lan ngay sau boot la qua som: tun chua len,
     # script tuong chua bat roi bam nut -- ma do la TOGGLE, tuc ngat mat cai
     # dang tu noi. Doi han ra truoc khi can thiep.
-    for _ in range(AUTOCONNECT_WAIT // 3):
+    # Poll re hon HAN so voi mo app: mot lenh `ip addr` moi 2 giay, doi lai
+    # bo qua duoc ca start_app + uiautomator dump. Vong nay thoat NGAY khi tun
+    # len, nen cho lau khong ton gi neu VPN len som.
+    deadline = time.monotonic() + AUTOCONNECT_WAIT
+    while time.monotonic() < deadline:
         if inst.vpn_connected():
             log("VPN tu len sau khi boot -- khong dung toi nut Connect")
             return
-        time.sleep(3)
+        time.sleep(2)
 
     inst.start_app_adb(VPN_PKG)
     time.sleep(4)  # cho app ve xong man hinh chinh truoc khi dump UI
@@ -226,8 +237,9 @@ def flow(inst: Instance, log: Log) -> None:
     # hieu de nhan ra chung di cung mot nhom.
     for name, (x, y) in WHEELS.items():
         times = random.randint(*SCROLLS[name])
-        log(f"banh xe {name} tai ({x}, {y}): cuon {times} nac")
-        inst.scroll(x, y, times=times, dy=SCROLL_DY)
+        dy = SCROLL_DY[name]
+        log(f"banh xe {name} tai ({x}, {y}): cuon {times} nac, dy={dy}")
+        inst.scroll(x, y, times=times, dy=dy, pause=SCROLL_PAUSE)
 
     time.sleep(AFTER_WHEELS)
     log(f"bam xac nhan tai {SUBMIT_BTN}")
@@ -296,6 +308,8 @@ def main() -> int:
                     help="khong keo cua so, de LDPlayer tu dat")
     ap.add_argument("--list-windows", action="store_true",
                     help="in moi cua so dang mo roi thoat (de tim dung tieu de)")
+    ap.add_argument("--no-tune", action="store_true",
+                    help="khong dung toi global setting cua LDPlayer")
     ap.add_argument("--reuse", action="store_true",
                     help="dung tiep may ao dang chay thay vi tat roi bat lai")
     args = ap.parse_args()
@@ -314,6 +328,14 @@ def main() -> int:
         return 0
 
     console = LDConsole(args.ldconsole)
+
+    if not args.no_tune:
+        # Bot tai chung cho ca LDPlayer: 4 may ao boot cung luc la nghen dia va
+        # CPU, day la phan lon trong ~83s cho boot. Day la SETTING CHUNG cua
+        # LDPlayer, khong phai rieng may ao nao -- dung --no-tune de khong dung.
+        console.global_setting(fps=30, audio=False, fast_play=True)
+        print("Da dat global setting: fps=30, audio=tat, fastplay=bat "
+              "(--no-tune de bo qua)")
 
     if args.dump_ui:
         pkg = args.dump_ui
