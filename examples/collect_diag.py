@@ -86,7 +86,9 @@ def main() -> int:
         w(f"\n--- {serial} ---")
         run(ADB, "connect", serial, timeout=20)
         w(f"  wm size : {run(ADB, '-s', serial, 'shell', 'wm', 'size', timeout=20)}")
-        w(f"  tun     : {run(ADB, '-s', serial, 'shell', 'ip addr | grep tun', timeout=20)}")
+        # Loc chat: 'grep tun' bat ca tunl0/ip6tnl0 la interface mac dinh cua
+        # Android, khong lien quan VPN. Chi tun0/tun1... moi la duong ham that.
+        w(f"  tun     : {run(ADB, '-s', serial, 'shell', "ip -o addr | grep -E ' tun[0-9]'", timeout=20)}")
         w(f"  express : {run(ADB, '-s', serial, 'shell', 'pm list packages | grep -i express', timeout=20)}")
         w(f"  roblox  : {run(ADB, '-s', serial, 'shell', 'pm list packages | grep -i roblox', timeout=20)}")
 
