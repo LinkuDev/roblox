@@ -243,8 +243,12 @@ def build_instances(console: LDConsole, do_clone: bool) -> list[Instance]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--clone", action="store_true", help="clone cho du 4 may truoc khi chay")
-    ap.add_argument("--dump-ui", action="store_true",
-                    help="mo ExpressVPN tren may goc va in cay giao dien roi thoat")
+    ap.add_argument("--dump-ui", nargs="?", const=VPN_PKG, metavar="PACKAGE",
+                    help=f"mo package roi in cay giao dien va thoat "
+                         f"(mac dinh {VPN_PKG}; thu {ROBLOX_PKG} de xem game "
+                         f"co lo node nao khong)")
+    ap.add_argument("--dump-index", type=int, default=None,
+                    help="may ao nao de dump (mac dinh: may goc)")
     ap.add_argument("--ldconsole", default=LDCONSOLE)
     ap.add_argument("--stagger", type=float, default=STAGGER)
     ap.add_argument("--clear-clones", action="store_true",
@@ -275,17 +279,39 @@ def main() -> int:
     console = LDConsole(args.ldconsole)
 
     if args.dump_ui:
-        src = console.find(SOURCE)
-        inst = Instance(console, src.index)
+        pkg = args.dump_ui
+        idx = args.dump_index
+        if idx is None:
+            src = console.find(SOURCE)
+            if src is None:
+                print(f"[FAIL] khong co may ao {SOURCE!r}")
+                return 1
+            idx = src.index
+        inst = Instance(console, idx)
         inst.start()
-        inst.start_app_adb(VPN_PKG)
+        inst.start_app_adb(pkg)
         time.sleep(5)
-        print(f"\nNode co the bam duoc trong {VPN_PKG}:\n")
-        for n in inst.ui_nodes():
-            if n["clickable"] or n["text"] or n["desc"]:
-                print(f"  text={n['text']!r:30} desc={n['desc']!r:25} "
-                      f"id={n['id'].split('/')[-1]!r:22} click={n['clickable']} @{n['center']}")
-        print("\n-> Chep dong dung voi nut Connect vao VPN_CONNECT_HINTS.")
+
+        nodes = inst.ui_nodes()
+        useful = [n for n in nodes if n["clickable"] or n["text"] or n["desc"]]
+        print(f"\nindex={idx}, {pkg}: {len(nodes)} node, "
+              f"{len(useful)} co text/desc/bam duoc\n")
+        for n in useful:
+            print(f"  text={n['text']!r:30} desc={n['desc']!r:25} "
+                  f"id={n['id'].split('/')[-1]!r:22} click={n['clickable']} @{n['center']}")
+
+        if len(useful) <= 2:
+            # App ve bang game engine chi lo ra mot SurfaceView duy nhat.
+            print("\n-> Gan nhu khong co node nao. App ve bang engine rieng chu")
+            print("   khong dung widget Android, uiautomator khong nhin thay gi ben trong.")
+            print("   Phan nay phai dieu khien bang anh mau: inst.tap_image(...).")
+            print(f"\n   Lay anh de cat mau:")
+            port = 5555 + idx * 2
+            print(f'   "C:\\LDPlayer\\LDPlayer9\\adb.exe" -s 127.0.0.1:{port} '
+                  f'exec-out screencap -p > shot.png')
+        else:
+            print("\n-> Co node doc duoc: dung inst.tap_node(text=..., res_id=...)")
+            print("   chac chan hon anh mau nhieu, va khong phu thuoc do phan giai.")
         return 0
 
     instances = build_instances(console, args.clone)
