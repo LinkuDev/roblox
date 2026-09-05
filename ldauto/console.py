@@ -164,51 +164,76 @@ class LDConsole:
     def create(self, name: str) -> None:
         self.run("add", "--name", name)
 
+    def vm_dir(self, index: int) -> Path | None:
+        """Thu muc o dia cua may ao, de do dung luong. None neu khong tim thay."""
+        d = self.path.parent / "vms" / f"leidian{index}"
+        return d if d.is_dir() else None
+
+    @staticmethod
+    def _dir_size(d: Path) -> int:
+        try:
+            return sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+        except OSError:
+            return 0
+
     def copy_from(
         self,
         name: str,
         source: int | str,
         timeout: float = 1800.0,
-        retries: int = 8,
-        retry_delay: float = 30.0,
+        appear_timeout: float = 120.0,
+        settle_timeout: float = 1800.0,
     ) -> None:
         """Nhan ban tu may ao co san -- nhanh hon `create` vi khoi cai lai app.
 
-        LDPlayer chep o TIEN TRINH NEN: lenh nay tra ve gan nhu tuc thi (0s) roi
-        van con chep tiep vai GB phia sau. Goi copy thu hai trong luc do bi tu
-        choi bang rc=3, khong kem thong bao nao. Khong co lenh nao hoi duoc
-        "chep xong chua", nen cach chac an la thu lai co cho.
+        KHONG tin returncode cua `copy`. Tren bang LDPlayer nay lenh tra ve ma
+        khac 0 KE CA KHI da tao duoc may ao; tin ma tra ve thi thanh vong lap
+        tao-roi-xoa vo tan. Thay vao do xac nhan bang thu do quan sat duoc:
 
-        Lan thu that bai co the de lai mot clone hong dang do mang dung ten
-        `name`; phai xoa truoc khi thu lai, neu khong lan sau se bao trung ten.
-        Chi xoa duoc an toan vi `name` la ten clone moi -- Farm.ensure() da xac
-        nhan no chua ton tai truoc khi goi vao day.
+          1. may ao co hien ra trong list2 khong (co ca do phan giai)
+          2. thu muc o dia cua no co ngung phinh khong -- ldconsole chep o tien
+             trinh nen, list2 hien ten ngay trong khi vai GB con dang chay.
+
+        Chi khi ca hai deu khong dat moi bao loi.
         """
-        for attempt in range(retries + 1):
-            try:
-                self.run("copy", "--name", name, "--from", str(source), timeout=timeout)
-                return
-            except LDConsoleError as exc:
-                if attempt >= retries:
-                    raise
-                # In NGUYEN VAN loi ldconsole tra ve. Truoc day cho nay in
-                # "LDPlayer dang ban" -- do la phong doan cua minh chu khong
-                # phai dieu ldconsole noi, va no che mat ma loi that.
-                first = str(exc).splitlines()[0]
-                print(f"  [{name}] thu {attempt + 1}/{retries} that bai: {first}")
+        rc_error: LDConsoleError | None = None
+        try:
+            self.run("copy", "--name", name, "--from", str(source), timeout=timeout)
+        except LDConsoleError as exc:
+            rc_error = exc  # ghi lai, chi dung neu buoc xac nhan cung that bai
 
-                # Doi TRUOC khi xoa: neu ldconsole dang chep o tien trinh nen
-                # thi xoa ngay se dam vao giua chung. Doi xong ma may ao da
-                # hien ra day du thi coi nhu no chep xong that.
-                time.sleep(retry_delay)
-                leftover = self.find(name)
-                if leftover is not None:
-                    if leftover.width:
-                        print(f"  [{name}] da co may ao ({leftover.width}x{leftover.height}) "
-                              f"-> coi nhu copy da xong o tien trinh nen")
-                        return
-                    print(f"  [{name}] con lai ban hong dang do -> xoa roi thu lai")
-                    self.remove(name)
+        # 1. doi may ao hien ra
+        deadline = time.monotonic() + appear_timeout
+        info = None
+        while time.monotonic() < deadline:
+            info = self.find(name)
+            if info is not None and info.width:
+                break
+            time.sleep(3)
+        else:
+            raise rc_error or LDConsoleError(
+                f"copy {name} tu {source}: may ao khong hien ra sau {appear_timeout}s"
+            )
+
+        if rc_error:
+            print(f"  [{name}] ldconsole bao loi nhung may ao da tao duoc "
+                  f"-> di tiep ({str(rc_error).splitlines()[0]})")
+
+        # 2. doi thu muc ngung phinh
+        d = self.vm_dir(info.index)
+        if d is None:
+            return
+        last, stable = -1, 0
+        deadline = time.monotonic() + settle_timeout
+        while time.monotonic() < deadline:
+            size = self._dir_size(d)
+            stable = stable + 1 if size == last and size > 0 else 0
+            if stable >= 2:
+                print(f"  [{name}] chep xong {size / 1e9:.2f} GB")
+                return
+            last = size
+            time.sleep(5)
+        print(f"  [{name}] thu muc van con phinh sau {settle_timeout:.0f}s -- di tiep")
 
     def remove(self, instance: int | str) -> None:
         self.run("remove", *self._target(instance))
