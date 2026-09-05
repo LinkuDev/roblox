@@ -121,7 +121,8 @@ SLOW = 1.0
 
 
 def pause(seconds: float, log: Log | None = None, why: str = "") -> None:
-    """time.sleep co nhan he so SLOW, va tinh luon ca Ctrl+C."""
+    """time.sleep co nhan he so SLOW, ton trong pause/stop."""
+    _gate(log)              # dang pause thi dung o day truoc khi cho tiep
     t = seconds * SLOW
     if log and why:
         log(f"cho {t:.0f}s {why}")
@@ -138,6 +139,25 @@ RESTART_JITTER = 10
 # Dat khi nguoi dung Ctrl+C. Thread dang chay se xong vong hien tai roi dung,
 # khong cat ngang giua chung de khoi bo lai may ao dang bat.
 STOP = threading.Event()
+
+# RESUME: SET = dang chay, CLEAR = tam dung. Cac thread di qua _gate() o dau moi
+# vong va truoc moi buoc cho -> pause co hieu luc o ranh gioi buoc, khong cat
+# ngang giua mot thao tac. Mac dinh SET (chay ngay).
+RESUME = threading.Event()
+RESUME.set()
+
+
+def _gate(log: "Log | None" = None) -> None:
+    """Chan lai khi dang pause; thoat ngay khi stop. Goi o cac diem an toan."""
+    if RESUME.is_set() or STOP.is_set():
+        return
+    if log:
+        log("tam dung (bam Tiep tuc de chay lai)")
+    while not RESUME.wait(0.2):
+        if STOP.is_set():
+            return
+    if log:
+        log("tiep tuc")
 
 # --- Lay cookie cuoi flow ------------------------------------------------
 # Cho Roblox login xong han sau khi bam Done -> cookie moi duoc ghi vao DB
@@ -397,6 +417,9 @@ def flow(inst: Instance, log: Log) -> None:
     fails = 0
     n = 0
     while not STOP.is_set():
+        _gate(log)         # tam dung giua cac vong neu duoc yeu cau
+        if STOP.is_set():
+            break
         n += 1
         log(f"===== vong {n}" + (f"/{ROUNDS}" if ROUNDS else "") + " =====")
         try:

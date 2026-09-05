@@ -19,14 +19,26 @@ _print_lock = threading.Lock()
 
 
 class Log:
-    """In co tien to [index], khoa lai de dong cua cac thread khong dan vao nhau."""
+    """In co tien to [index], khoa lai de dong cua cac thread khong dan vao nhau.
+
+    sink: neu dat (vd GUI), moi dong log duoc day them vao day ngoai viec in
+    ra terminal. Goi tu nhieu thread nen sink phai an toan (queue.put la du).
+    """
+
+    sink = None  # callable(str) | None
 
     def __init__(self, tag: str):
         self.tag = tag
 
     def __call__(self, msg: str) -> None:
+        line = f"[{self.tag}] {msg}"
         with _print_lock:
-            print(f"[{self.tag}] {msg}", flush=True)
+            print(line, flush=True)
+            if Log.sink is not None:
+                try:
+                    Log.sink(line)
+                except Exception:
+                    pass
 
 
 @dataclass
