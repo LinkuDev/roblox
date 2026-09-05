@@ -84,9 +84,13 @@ class LDConsole:
         out = _decode(proc.stdout).strip()
         err = _decode(proc.stderr).strip()
         if proc.returncode != 0:
+            hint = ""
+            if not out and not err:
+                hint = ("\nldconsole khong in ly do. Thuong la: may ao nguon dang chay, "
+                        "ten da ton tai, het dung luong o dia, hoac ten co ky tu la.")
             raise LDConsoleError(
                 f"ldconsole {' '.join(map(str, args))} -> rc={proc.returncode}\n"
-                f"stdout: {out}\nstderr: {err}"
+                f"stdout: {out}\nstderr: {err}{hint}"
             )
         return out
 
@@ -134,8 +138,15 @@ class LDConsole:
         return self.find(name) is not None
 
     def is_running(self, instance: int | str) -> bool:
-        # .strip() la bat buoc: ldconsole tra ve "running\r\n".
-        return self.run("isrunning", *self._target(instance)).strip() == "running"
+        """Doc tu list2 (pid) chu khong dung lenh `isrunning`.
+
+        `isrunning` in ra chuoi tieng Anh tren ban quoc te nhung tieng Trung tren
+        ban TQ, nen so `== "running"` la sai am tham: ham tra ve False cho may ao
+        DANG CHAY, va Farm.ensure() se copy mot o dia dang bi ghi. list2 tra ve
+        pid, la so, khong phu thuoc ngon ngu.
+        """
+        info = self.find(instance)
+        return info is not None and info.running
 
     # ---------- vong doi ----------
 
