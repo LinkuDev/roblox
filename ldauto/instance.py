@@ -171,6 +171,32 @@ class Instance:
     # Bang thay the nay port tu InputText() cua AutoLDPlayer.
     _TEXT_ESCAPE = {" ": "%s", **{c: "\\" + c for c in "&<>?:{}[]|;()\\'\""}}
 
+    def scroll(
+        self,
+        x: int,
+        y: int,
+        times: int = 1,
+        dy: int = 60,
+        duration: float = 0.25,
+        pause: float = 0.35,
+    ) -> None:
+        """Cuon tai (x, y) bang `times` cu vuot ngan, moi cu `dy` pixel.
+
+        dy > 0 la ngon tay di XUONG. Tren banh xe chon (picker) thi ngon tay di
+        xuong keo danh sach ve phia gia tri truoc do -- nguoc voi truc giac
+        "cuon xuong de xem tiep", nen doi dau neu chay ra khong nhu y.
+
+        Vuot nhieu cu ngan chu khong mot cu dai: banh xe co quan tinh, mot cu
+        vuot dai bay qua vai chuc nac roi dung o cho khong doan duoc. Cu ngan
+        an dut tung nac mot.
+
+        `pause` de banh xe dung han giua hai cu; khong cho thi cu sau noi vao
+        da cu truoc thanh mot cu vuot dai.
+        """
+        for _ in range(times):
+            self.swipe(x, y, x, y + dy, duration)
+            time.sleep(pause)
+
     def long_press(self, x: int, y: int, duration: float = 0.8) -> None:
         # swipe tai cho = nhan giu; adb khong co lenh long-press rieng.
         self._retry(lambda d: d.swipe(x, y, x, y, duration))

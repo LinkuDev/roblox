@@ -8,6 +8,7 @@ Thao tac trong Roblox them vao ham flow(), muc 5.
 """
 
 import argparse
+import random
 import re
 import sys
 import time
@@ -64,6 +65,21 @@ WINDOW_COLS = 4              # 4 may nam ngang mot hang
 WINDOW_ORIGIN = (0, 0)       # goc tren trai man hinh
 WINDOW_GAP = (8, 8)          # khe ho giua hai cua so
 CHROME = (40, 90)            # vien + tieu de + cot cong cu, chi dung khi do hut
+
+# --- Man xac minh tuoi sau khi Roblox mo ---------------------------------
+# Toa do pixel, dung cho man hinh 400x500. Doi do phan giai la phai do lai het.
+ROBLOX_SETTLE = 10           # giay cho Roblox ve xong truoc khi bam
+CONTINUE_BTN = (201, 322)    # nut Continue cua "Free item with an age check"
+AFTER_CONTINUE = 3           # giay cho banh xe chon ngay hien ra
+
+WHEELS = {                   # ba banh xe chon ngay sinh
+    "thang": (107, 244),
+    "ngay":  (217, 244),
+    "nam":   (313, 244),
+}
+SCROLL_DY = 60               # pixel moi nac cuon
+YEAR_SCROLLS = 5             # so nac cuon o banh xe nam
+RANDOM_SCROLLS = (1, 6)      # so nac ngau nhien cho thang va ngay
 # --------------------------------------------------------------------------
 
 
@@ -190,15 +206,30 @@ def flow(inst: Instance, log: Log) -> None:
         raise RuntimeError(f"Roblox khong len foreground (dang o {inst.current_app()!r})")
     lap("Roblox da mo")
 
-    # 5. ------- THAO TAC TIEP THEO DAT O DAY -------
-    # Roblox ve bang game engine nen uiautomator KHONG doc duoc node nao trong
-    # game. Tu day tro di phai dung anh mau:
-    #
-    #     inst.tap_image(IMG / "play.png", timeout=60)
-    #     inst.swipe_percent(50, 80, 50, 30)
-    #
-    # Anh mau phai chup o dung do phan giai cua may ao nay.
-    log("(chua co thao tac nao sau khi mo Roblox)")
+    # 5. Man xac minh tuoi.
+    #    Bam theo toa do pixel chu khong qua uiautomator: Roblox ve bang engine
+    #    rieng nen khong lo ra node nao de tim. Doi lai, toa do chi dung o dung
+    #    do phan giai da do -- ca 4 may deu 400x500 nen dung chung duoc.
+    log(f"doi {ROBLOX_SETTLE}s cho Roblox ve xong...")
+    time.sleep(ROBLOX_SETTLE)
+
+    log(f"bam Continue tai {CONTINUE_BTN}")
+    inst.tap(*CONTINUE_BTN)
+    time.sleep(AFTER_CONTINUE)
+
+    # Moi may mot ngay sinh khac nhau: 4 tai khoan cung ngay sinh la mot dau
+    # hieu de nhan ra chung di cung mot nhom.
+    for name, (x, y) in WHEELS.items():
+        if name == "nam":
+            times = YEAR_SCROLLS
+        else:
+            times = random.randint(*RANDOM_SCROLLS)
+        log(f"banh xe {name} tai ({x}, {y}): cuon {times} nac")
+        inst.scroll(x, y, times=times, dy=SCROLL_DY)
+
+    lap("xong man xac minh tuoi")
+
+    # ------- THAO TAC TIEP THEO DAT O DAY -------
 
 
 def build_instances(console: LDConsole, do_clone: bool) -> list[Instance]:
