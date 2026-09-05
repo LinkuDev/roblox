@@ -53,6 +53,28 @@ class Instance:
             return self.connect()
         return self._device
 
+    def _retry(self, fn, *a, **kw):
+        """Goi fn(device, ...), noi lai mot lan neu ket noi da rot.
+
+        LDPlayer tha ket noi ADB giua chung -- adbd trong may ao khoi dong lai,
+        hoac LDPlayer doi cau hinh, hoac may ao vua reboot. adbutils cache
+        AdbDevice nen tu do tro di moi lenh deu nem 'device not found' du may ao
+        van chay binh thuong. Noi lai la xong; khong co lop nay thi ca farm chay
+        vai tieng se chet dan tung may mot.
+        """
+        try:
+            return fn(self.device, *a, **kw)
+        except Exception as exc:
+            if "device not found" not in str(exc) and "offline" not in str(exc).lower():
+                raise
+            self._device = None
+            self.connect(retries=5, delay=2)
+            return fn(self.device, *a, **kw)
+
+    def sh(self, cmd: str, timeout: float = 30.0) -> str:
+        """adb shell, tu noi lai neu ket noi rot. Dung cai nay thay cho device.shell()."""
+        return self._retry(lambda d: d.shell(cmd, timeout=timeout))
+
     # ---------- vong doi ----------
 
     @staticmethod
@@ -111,10 +133,10 @@ class Instance:
     # ---------- thao tac co ban ----------
 
     def tap(self, x: int, y: int) -> None:
-        self.device.click(x, y)
+        self._retry(lambda d: d.click(x, y))
 
     def swipe(self, x1: int, y1: int, x2: int, y2: int, duration: float = 0.3) -> None:
-        self.device.swipe(x1, y1, x2, y2, duration)
+        self._retry(lambda d: d.swipe(x1, y1, x2, y2, duration))
 
     # `adb shell input text` khong nhan space va nuot mot loat ky tu shell.
     # Bang thay the nay port tu InputText() cua AutoLDPlayer.
@@ -122,7 +144,7 @@ class Instance:
 
     def long_press(self, x: int, y: int, duration: float = 0.8) -> None:
         # swipe tai cho = nhan giu; adb khong co lenh long-press rieng.
-        self.device.swipe(x, y, x, y, duration)
+        self._retry(lambda d: d.swipe(x, y, x, y, duration))
 
     def screen_resolution(self) -> tuple[int, int]:
         """Doc do phan giai that tu trong Android (co cache).
@@ -132,7 +154,7 @@ class Instance:
         `wm size` ngan va on dinh hon nhieu.
         """
         if self._resolution is None:
-            out = self.device.shell("wm size").strip()
+            out = self.sh("wm size").strip()
             # "Physical size: 540x960" hoac them "Override size: ..."
             line = [l for l in out.splitlines() if "size:" in l][-1]
             w, h = line.split(":")[1].strip().split("x")
@@ -159,10 +181,10 @@ class Instance:
 
     def text(self, s: str) -> None:
         escaped = "".join(self._TEXT_ESCAPE.get(c, c) for c in s)
-        self.device.shell(f'input text "{escaped}"')
+        self.sh(f'input text "{escaped}"')
 
     def key(self, keycode: str | int) -> None:
-        self.device.shell(f"input keyevent {keycode}")
+        self.sh(f"input keyevent {keycode}")
 
     def back(self) -> None:
         self.key("KEYCODE_BACK")
@@ -179,8 +201,8 @@ class Instance:
         AutoLDPlayer.PlanModeOff() bi loi copy-paste: no set airplane_mode_on 1
         y het PlanModeOn, tuc la khong bao gio tat duoc.
         """
-        self.device.shell(f"settings put global airplane_mode_on {1 if on else 0}")
-        self.device.shell(
+        self.sh(f"settings put global airplane_mode_on {1 if on else 0}")
+        self.sh(
             f"am broadcast -a android.intent.action.AIRPLANE_MODE --ez state {str(on).lower()}"
         )
 
@@ -194,7 +216,7 @@ class Instance:
 
     def list_packages(self, third_party: bool = True) -> list[str]:
         """Package dang cai. third_party=True bo qua app he thong cho de nhin."""
-        out = self.device.shell(f"pm list packages{' -3' if third_party else ''}")
+        out = self.sh(f"pm list packages{' -3' if third_party else ''}")
         return sorted(
             line.split(":", 1)[1].strip()
             for line in out.splitlines()
@@ -213,7 +235,7 @@ class Instance:
         wait_boot_adb(). `monkey` tu tim LAUNCHER activity nen khoi phai
         biet ten activity.
         """
-        out = self.device.shell(
+        out = self.sh(
             f"monkey -p {package} -c android.intent.category.LAUNCHER 1"
         )
         # monkey tra ve exit code 0 ca khi that bai -> phai doc stdout.
@@ -221,10 +243,10 @@ class Instance:
             raise RuntimeError(f"Khong mo duoc {package}:\n{out.strip()}")
 
     def stop_app_adb(self, package: str) -> None:
-        self.device.shell(f"am force-stop {package}")
+        self.sh(f"am force-stop {package}")
 
     def is_app_running(self, package: str) -> bool:
-        return bool(self.device.shell(f"pidof {package}").strip())
+        return bool(self.sh(f"pidof {package}").strip())
 
     def current_app(self) -> str | None:
         """Package dang o foreground, None neu khong doc duoc.
@@ -237,7 +259,7 @@ class Instance:
             ("dumpsys window", "mCurrentFocus"),
         ):
             try:
-                for line in self.device.shell(cmd).splitlines():
+                for line in self.sh(cmd).splitlines():
                     if marker not in line:
                         continue
                     for tok in line.split():
@@ -257,10 +279,16 @@ class Instance:
         app ve bang canvas/game engine se khong lo ra node nao -- Roblox la
         vi du, nen phan trong game van phai dung tap_image.
         """
-        out = self.device.shell("uiautomator dump /sdcard/ui.xml", timeout=30)
-        if "ERROR" in out.upper() or "could not" in out.lower():
-            raise RuntimeError(f"uiautomator dump that bai: {out.strip()}")
-        return self.device.shell("cat /sdcard/ui.xml", timeout=30)
+        # uiautomator tu choi dump khi man hinh chua "idle" -- app dang chay
+        # animation (nut Connect cua VPN la vi du) se truot lien may lan.
+        # Thu lai vai lan re hon la de goi ham nem ra ngoai.
+        last = ""
+        for _ in range(4):
+            last = self.sh("uiautomator dump /sdcard/ui.xml", timeout=30)
+            if "ERROR" not in last.upper() and "could not" not in last.lower():
+                return self.sh("cat /sdcard/ui.xml", timeout=30)
+            time.sleep(2)
+        raise RuntimeError(f"uiautomator dump that bai sau 4 lan: {last.strip()}")
 
     @staticmethod
     def _node_center(bounds: str) -> tuple[int, int]:
@@ -344,7 +372,7 @@ class Instance:
 
         App bao 'Connected' ma khong co tun0 nghia la duong ham chua dung duoc.
         """
-        out = self.device.shell("ip addr", timeout=15)
+        out = self.sh("ip addr", timeout=15)
         return "tun0" in out or "tun1" in out
 
     def wait_vpn(self, timeout: float = 90.0, poll: float = 3.0) -> None:
@@ -362,21 +390,21 @@ class Instance:
         roi khoi dong lai may ao. Tra ve False neu khong an -- luc do phai bam
         tay vao nut OK trong hop thoai "Connection request".
         """
-        out = self.device.shell(f"appops set {package} ACTIVATE_VPN allow")
+        out = self.sh(f"appops set {package} ACTIVATE_VPN allow")
         return not out.strip()
 
     def set_proxy(self, ip: str, port: int) -> None:
         """Moi may ao mot IP rieng -- can thiet khi chay farm nhieu tai khoan."""
-        self.device.shell(f"settings put global http_proxy {ip}:{port}")
+        self.sh(f"settings put global http_proxy {ip}:{port}")
 
     def clear_proxy(self) -> None:
-        self.device.shell("settings put global http_proxy :0")
+        self.sh("settings put global http_proxy :0")
 
     # ---------- nhin ----------
 
     def screenshot(self) -> np.ndarray:
         """Tra ve anh BGR cho OpenCV."""
-        pil = self.device.screenshot()
+        pil = self._retry(lambda d: d.screenshot())
         return cv2.cvtColor(np.array(pil.convert("RGB")), cv2.COLOR_RGB2BGR)
 
     def find(
