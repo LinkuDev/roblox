@@ -29,8 +29,8 @@ VPN_PKG = "com.expressvpn.vpn"
 ROBLOX_PKG = "com.roblox.client"
 
 CPU, MEMORY, CPU_LIMIT = 2, 2048, 60
-STAGGER = 12               # giay giua moi may khi bat -- 4 may cung luc se nghen
-AUTOCONNECT_WAIT = 12      # giay doi ExpressVPN tu noi lai truoc khi can thiep
+STAGGER = 8                # giay giua moi may khi bat -- 4 may cung luc se nghen
+AUTOCONNECT_WAIT = 6       # giay doi ExpressVPN tu noi lai truoc khi can thiep
 RESOLUTION = None          # None = giu nguyen theo may goc
 
 # Nut Connect cua ExpressVPN, lay tu --dump-ui. Day la TOGGLE: bam khi dang bat
@@ -132,13 +132,19 @@ def connect_vpn(inst: Instance, log: Log) -> None:
 def flow(inst: Instance, log: Log) -> None:
     """Kich ban chay tren MOI may ao. Cac thread deu chay ham nay."""
 
-    # 1. bat may ao, doi Android san sang.
-    #    restart() thay vi start(): dung tiep may ao dang chay se mang theo moi
-    #    thu con sot lai cua phien truoc -- app mo do dang, VPN nua chung,
-    #    dialog chua tat. Bat lai tu dau re hon la doan xem con gi sot.
+    t0 = [time.monotonic()]
+
+    def lap(what: str) -> None:
+        """In thoi gian tung chang -- khong do thi khong biet cat cho nao."""
+        now = time.monotonic()
+        log(f"{what} ({now - t0[0]:.0f}s)")
+        t0[0] = now
+
+    # 1. bat may ao, doi Android san sang. May ao dang chay da duoc tat dong
+    #    loat o main() truoc khi vao day, nen cho nay chi con viec bat.
     log("dang bat may ao...")
-    inst.start() if REUSE else inst.restart(log)
-    log(f"san sang -> {inst.serial}")
+    inst.start()
+    lap(f"san sang -> {inst.serial}")
 
     # 1b. keo cua so ve o cua no. Dung handle tu list2 chu khong do theo tieu de:
     #     tieu de DUNG la ten may ao, nhung khop chuoi con mo ho ('bot1' nam
@@ -166,22 +172,23 @@ def flow(inst: Instance, log: Log) -> None:
     # 2. VPN truoc, Roblox sau -- mo Roblox truoc thi no da bat dau noi mang
     #    bang IP that roi moi bi doi duong, de sinh loi ket noi giua chung.
     connect_vpn(inst, log)
+    lap("VPN xong")
 
     # 3. mo Roblox
     if inst.index in CLEAR_ROBLOX_ON:
-        log(f"xoa du lieu {ROBLOX_PKG} (ve nhu vua cai)")
         inst.clear_app(ROBLOX_PKG)
+        lap(f"da xoa du lieu {ROBLOX_PKG}")
     log(f"dang mo {ROBLOX_PKG}...")
     inst.start_app_adb(ROBLOX_PKG)
 
     # 4. xac nhan len foreground that su
     for _ in range(30):
-        time.sleep(2)
         if inst.current_app() == ROBLOX_PKG:
             break
+        time.sleep(2)
     else:
         raise RuntimeError(f"Roblox khong len foreground (dang o {inst.current_app()!r})")
-    log("Roblox da mo")
+    lap("Roblox da mo")
 
     # 5. ------- THAO TAC TIEP THEO DAT O DAY -------
     # Roblox ve bang game engine nen uiautomator KHONG doc duoc node nao trong
@@ -242,6 +249,8 @@ def main() -> int:
     ap.add_argument("--stagger", type=float, default=STAGGER)
     ap.add_argument("--clear-roblox", action="store_true",
                     help="xoa du lieu Roblox tren MOI may, ke ca may goc")
+    ap.add_argument("--clear-clones", action="store_true",
+                    help="xoa du lieu Roblox tren clone, giu nguyen may goc")
     ap.add_argument("--keep-roblox-data", action="store_true",
                     help="khong xoa gi, ke ca tren clone moi tao")
     ap.add_argument("--no-arrange", action="store_true",
@@ -294,13 +303,30 @@ def main() -> int:
     elif args.clear_roblox:
         CLEAR_ROBLOX_ON.update(i.index for i in instances)
         print(f"Se xoa du lieu Roblox tren TAT CA: {sorted(CLEAR_ROBLOX_ON)}")
-    elif args.clone:
-        # instances[0] la may goc -- khong dung toi. Chi clone vua tao moi xoa.
+    elif args.clear_clones or args.clone:
+        # instances[0] la may goc -- khong dung toi. Chi clone moi xoa.
         CLEAR_ROBLOX_ON.update(i.index for i in instances[1:])
         print(f"Se xoa du lieu Roblox tren clone moi: {sorted(CLEAR_ROBLOX_ON)}")
     print()
 
+    # Tat dong loat TRUOC khi vao vong song song. `quit` re va khong ton CPU,
+    # nen khong can gian cach; de trong flow() thi moi thread phai doi luot
+    # stagger cua minh roi moi bat dau tat -- cong them ca phut vo ich.
+    if not args.reuse:
+        running = [i for i in instances if console.is_running(i.index)]
+        if running:
+            print(f"Tat {len(running)} may ao dang chay truoc khi bat lai...")
+            for i in running:
+                console.quit(i.index)
+            for i in running:
+                # settle=0: cho them giay chi can truoc khi COPY o dia, con bat
+                # lai thi khong.
+                console.wait_stopped(i.index, settle=0)
+            print("da tat xong\n")
+
+    t_start = time.monotonic()
     results = run_parallel(instances, flow, stagger=args.stagger)
+    print(f"\nTong thoi gian: {time.monotonic() - t_start:.0f}s")
     return report(results)
 
 

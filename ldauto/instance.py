@@ -114,7 +114,7 @@ class Instance:
         except Exception:
             return []
 
-    def wait_boot_adb(self, timeout: float = 240.0, poll: float = 3.0) -> None:
+    def wait_boot_adb(self, timeout: float = 240.0, poll: float = 2.0) -> None:
         """Doi Android boot xong bang cach hoi THANG cong ADB.
 
         `LDConsole.wait_boot` di qua `ldconsole adb --command`, va tang passthrough
