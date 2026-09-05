@@ -53,23 +53,40 @@ def main() -> int:
     found = []
     for p in open_ports:
         serial = f"127.0.0.1:{p}"
-        out = adb("connect", serial)
-        if "connected" not in out.lower():
-            print(f"   {serial:22} {out}")
-            continue
+        print(f"\n   --- {serial} ---")
+        print(f"   connect   : {adb('connect', serial)!r}")
+        print(f"   get-state : {adb('-s', serial, 'get-state')!r}")
+        print(f"   devices -l:")
+        for line in adb("devices", "-l").splitlines()[1:]:
+            if line.strip():
+                print(f"       {line}")
+        # In NGUYEN VAN loi thay vi nuot di -- day moi la thu can doc.
         size = adb("-s", serial, "shell", "wm", "size")
-        model = adb("-s", serial, "shell", "getprop", "ro.product.model")
-        if "error" in size.lower() or not size:
-            print(f"   {serial:22} noi duoc nhung khong goi duoc shell")
-            continue
-        size = size.replace("\n", " ").strip()
-        print(f"   {serial:22} OK  {size}  model={model}")
-        found.append(serial)
+        print(f"   wm size   : {size!r}")
+        if size and "error" not in size.lower() and "x" in size:
+            found.append(serial)
 
-    print(f"\n4. Ket luan")
     if not found:
-        print("   Cong mo nhung khong may ao nao tra loi shell.")
-        print("   -> Thu:  adb kill-server   roi chay lai (xung dot 2 ban adb).")
+        print("\n4. Khong goi duoc shell -> thu kill-server roi lam lai")
+        print(f"   kill-server: {adb('kill-server')!r}")
+        print(f"   start-server: {adb('start-server')!r}")
+        for p in open_ports:
+            serial = f"127.0.0.1:{p}"
+            adb("connect", serial)
+            size = adb("-s", serial, "shell", "wm", "size")
+            print(f"   {serial} wm size: {size!r}")
+            if size and "error" not in size.lower() and "x" in size:
+                found.append(serial)
+
+    print("\n5. Ket luan")
+    if not found:
+        print("   Van khong goi duoc shell.")
+        print("   -> Kha nang cao nhat: ADB debugging trong LDPlayer dang TAT.")
+        print("      Settings > Other settings > ADB debugging > Open local connection")
+        print("      Luu lai roi KHOI DONG LAI may ao (khong phai chi dong cua so).")
+        print("   -> Neu da bat roi ma van the: xem dong 'devices -l' o tren.")
+        print("      'offline'      = may ao chua boot xong, doi them.")
+        print("      'unauthorized' = co hop thoai 'Allow USB debugging' trong may ao, bam OK.")
         return 1
 
     for serial in found:
