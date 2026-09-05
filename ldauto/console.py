@@ -76,11 +76,23 @@ class LDConsole:
         nhieu lenh ldconsole van in text khi thanh cong. Chi tin returncode.
         """
         cmd = [str(self.path), *map(str, args)]
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=timeout or self.timeout,
-        )
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=timeout or self.timeout,
+            )
+        except OSError as exc:
+            # WinError 740 = "requires elevation". ldconsole.exe co manifest doi
+            # quyen admin, nen goi tu terminal thuong chet ngay luc tao tien
+            # trinh -- truoc ca khi chay duoc lenh nao. Loi goc khong he nhac
+            # den admin nen rat de mat thoi gian di tim nham cho.
+            if getattr(exc, "winerror", None) == 740:
+                raise LDConsoleError(
+                    f"{self.path.name} doi quyen Administrator.\n"
+                    f"-> Mo cmd/PowerShell bang 'Run as administrator' roi chay lai."
+                ) from exc
+            raise
         out = _decode(proc.stdout).strip()
         err = _decode(proc.stderr).strip()
         if proc.returncode != 0:
