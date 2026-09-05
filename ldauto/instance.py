@@ -245,6 +245,20 @@ class Instance:
     def stop_app_adb(self, package: str) -> None:
         self.sh(f"am force-stop {package}")
 
+    def clear_app(self, package: str) -> None:
+        """Xoa sach du lieu + cache cua app, dua no ve nhu vua cai.
+
+        Xoa ca dang nhap. Tren farm nhan ban day la thu can lam voi app choi
+        game -- moi clone phai la mot phien rieng, khong thi ca 4 may cung mot
+        tai khoan. Nhung TUYET DOI khong goi voi app VPN: mat luon dang nhap
+        ExpressVPN va consent VPN da cap, phai lam tay lai tung may.
+
+        pm clear tu force-stop app truoc nen khong can tat rieng.
+        """
+        out = self.sh(f"pm clear {package}", timeout=60)
+        if "success" not in out.lower():
+            raise RuntimeError(f"pm clear {package} that bai: {out.strip()!r}")
+
     def is_app_running(self, package: str) -> bool:
         return bool(self.sh(f"pidof {package}").strip())
 

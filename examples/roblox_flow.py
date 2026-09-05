@@ -48,6 +48,12 @@ VPN_OFF_RE = re.compile(r"\bnot\b|\bdisconnect", re.I)
 
 def status_says_on(text: str) -> bool:
     return bool(VPN_ON_RE.search(text)) and not VPN_OFF_RE.search(text)
+
+
+# Index nao can xoa du lieu Roblox truoc khi mo. Dat trong main(): clone luon
+# duoc xoa (khong thi 4 may dung chung mot phien dang nhap), may goc thi khong
+# -- do la may ban dung tay, xoa la mat du lieu that.
+CLEAR_ROBLOX_ON: set[int] = set()
 # --------------------------------------------------------------------------
 
 
@@ -128,6 +134,9 @@ def flow(inst: Instance, log: Log) -> None:
     connect_vpn(inst, log)
 
     # 3. mo Roblox
+    if inst.index in CLEAR_ROBLOX_ON:
+        log(f"xoa du lieu {ROBLOX_PKG} (ve nhu vua cai)")
+        inst.clear_app(ROBLOX_PKG)
     log(f"dang mo {ROBLOX_PKG}...")
     inst.start_app_adb(ROBLOX_PKG)
 
@@ -197,6 +206,10 @@ def main() -> int:
                     help="mo ExpressVPN tren may goc va in cay giao dien roi thoat")
     ap.add_argument("--ldconsole", default=LDCONSOLE)
     ap.add_argument("--stagger", type=float, default=STAGGER)
+    ap.add_argument("--clear-roblox", action="store_true",
+                    help="xoa du lieu Roblox tren MOI may, ke ca may goc")
+    ap.add_argument("--keep-roblox-data", action="store_true",
+                    help="khong xoa gi, ke ca tren clone moi tao")
     args = ap.parse_args()
 
     console = LDConsole(args.ldconsole)
@@ -216,6 +229,18 @@ def main() -> int:
         return 0
 
     instances = build_instances(console, args.clone)
+
+    if args.keep_roblox_data:
+        pass
+    elif args.clear_roblox:
+        CLEAR_ROBLOX_ON.update(i.index for i in instances)
+        print(f"Se xoa du lieu Roblox tren TAT CA: {sorted(CLEAR_ROBLOX_ON)}")
+    elif args.clone:
+        # instances[0] la may goc -- khong dung toi. Chi clone vua tao moi xoa.
+        CLEAR_ROBLOX_ON.update(i.index for i in instances[1:])
+        print(f"Se xoa du lieu Roblox tren clone moi: {sorted(CLEAR_ROBLOX_ON)}")
+    print()
+
     results = run_parallel(instances, flow, stagger=args.stagger)
     return report(results)
 
