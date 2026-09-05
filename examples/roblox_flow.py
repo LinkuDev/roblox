@@ -29,8 +29,8 @@ VPN_PKG = "com.expressvpn.vpn"
 ROBLOX_PKG = "com.roblox.client"
 
 CPU, MEMORY, CPU_LIMIT = 2, 2048, 60
-STAGGER = 25               # giay giua moi may khi bat -- 4 may cung luc se nghen
-AUTOCONNECT_WAIT = 45      # giay doi ExpressVPN tu noi lai truoc khi can thiep
+STAGGER = 12               # giay giua moi may khi bat -- 4 may cung luc se nghen
+AUTOCONNECT_WAIT = 12      # giay doi ExpressVPN tu noi lai truoc khi can thiep
 RESOLUTION = None          # None = giu nguyen theo may goc
 
 # Nut Connect cua ExpressVPN, lay tu --dump-ui. Day la TOGGLE: bam khi dang bat
@@ -57,12 +57,12 @@ def status_says_on(text: str) -> bool:
 CLEAR_ROBLOX_ON: set[int] = set()
 REUSE = False                # --reuse: dung tiep may ao dang chay
 
-# index -> (x, y) goc tren trai cua so. Dat trong main() theo luoi WINDOW_COLS.
-WINDOW_POS: dict[int, tuple[int, int]] = {}
-WINDOW_NAME: dict[int, str] = {}
+# index -> o thu may tren luoi. Toa do khong dat cung o day ma tinh luc chay,
+# tu be rong that cua cua so -- xem window.slot_pos().
+WINDOW_SLOT: dict[int, int] = {}
 WINDOW_COLS = 4              # 4 may nam ngang mot hang
-WINDOW_CELL = (340, 640)     # buoc nhay giua hai cua so, khong phai kich thuoc
-WINDOW_ORIGIN = (0, 0)
+WINDOW_ORIGIN = (0, 0)       # goc tren trai man hinh
+WINDOW_GAP = (8, 8)          # khe ho giua hai cua so
 # --------------------------------------------------------------------------
 
 
@@ -139,20 +139,19 @@ def flow(inst: Instance, log: Log) -> None:
     inst.start() if REUSE else inst.restart(log)
     log(f"san sang -> {inst.serial}")
 
-    # 1b. keo cua so ve dung cho de 4 may khong de len nhau.
-    #     Lay handle tu list2 chu khong do theo tieu de: tieu de cua so LDPlayer
-    #     la ten app dang mo ('Roblox'), khong phai ten may ao. Phai doc SAU khi
-    #     may ao bat xong -- luc tat thi handle bang 0.
-    pos = WINDOW_POS.get(inst.index)
-    if pos:
+    # 1b. keo cua so ve o cua no. Lay handle tu list2 chu khong do theo tieu de:
+    #     tieu de cua so LDPlayer la ten app dang mo ('Roblox'), khong phai ten
+    #     may ao. Phai doc SAU khi may ao bat xong -- luc tat handle bang 0.
+    slot = WINDOW_SLOT.get(inst.index)
+    if slot is not None:
         info = inst.console.find(inst.index)
         hwnd = info.top_window_handle if info else 0
-        if window.place_hwnd(hwnd, *pos):
-            log(f"da keo cua so (hwnd={hwnd}) ve {pos}")
+        pos = window.slot_pos(hwnd, slot, cols=WINDOW_COLS,
+                              origin=WINDOW_ORIGIN, gap=WINDOW_GAP)
+        if pos and window.place_hwnd(hwnd, *pos):
+            log(f"cua so -> o {slot} tai {pos} (hwnd={hwnd})")
         else:
             log(f"khong keo duoc cua so, hwnd={hwnd} -- bo qua")
-    if CPU_LIMIT:
-        inst.console.down_cpu(inst.index, CPU_LIMIT)
 
     # 2. VPN truoc, Roblox sau -- mo Roblox truoc thi no da bat dau noi mang
     #    bang IP that roi moi bi doi duong, de sinh loi ket noi giua chung.
@@ -275,15 +274,10 @@ def main() -> int:
     instances = build_instances(console, args.clone)
 
     if not args.no_arrange:
-        # Tieu de cua so LDPlayer chinh la ten may ao.
-        for inst, xy in zip(instances, window.grid(len(instances),
-                                                   cols=WINDOW_COLS,
-                                                   origin=WINDOW_ORIGIN,
-                                                   cell=WINDOW_CELL)):
-            info = console.find(inst.index)
-            WINDOW_POS[inst.index] = xy
-            WINDOW_NAME[inst.index] = info.name if info else str(inst.index)
-        print(f"Vi tri cua so: {[(WINDOW_NAME[i.index], WINDOW_POS[i.index]) for i in instances]}")
+        for slot, inst in enumerate(instances):
+            WINDOW_SLOT[inst.index] = slot
+        print(f"Xep cua so: {WINDOW_COLS} cot, moi may mot o "
+              f"(be rong do luc chay, khong dat cung)")
 
     if args.keep_roblox_data:
         pass

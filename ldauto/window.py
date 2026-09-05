@@ -64,6 +64,41 @@ def find(title: str) -> int | None:
     return None
 
 
+def rect(hwnd: int) -> tuple[int, int, int, int] | None:
+    """(x, y, rong, cao) cua cua so, hoac None neu handle khong dung."""
+    if not _WIN or not hwnd or not _user32.IsWindow(hwnd):
+        return None
+    r = wintypes.RECT()
+    if not _user32.GetWindowRect(hwnd, ctypes.byref(r)):
+        return None
+    return r.left, r.top, r.right - r.left, r.bottom - r.top
+
+
+def slot_pos(
+    hwnd: int,
+    slot: int,
+    cols: int = 4,
+    origin: tuple[int, int] = (0, 0),
+    gap: tuple[int, int] = (8, 8),
+) -> tuple[int, int] | None:
+    """Vi tri cho o thu `slot`, tinh tu BE RONG THAT cua chinh cua so do.
+
+    Dat buoc nhay bang tay thi luon doan sai: be rong cua so LDPlayer khong
+    bang do phan giai may ao -- con vien, thanh tieu de va cot cong cu ben
+    phai. Do roi tinh thi khong bao gio chong nhau.
+
+    Moi may ao cung do phan giai nen moi thread tu do cua so cua minh deu ra
+    cung mot con so -- khong can dong bo giua cac thread.
+    """
+    r = rect(hwnd)
+    if r is None:
+        return None
+    _, _, w, h = r
+    x0, y0 = origin
+    gx, gy = gap
+    return x0 + (slot % cols) * (w + gx), y0 + (slot // cols) * (h + gy)
+
+
 def place_hwnd(
     hwnd: int,
     x: int,
