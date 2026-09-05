@@ -70,9 +70,9 @@ CHROME = (40, 90)            # vien + tieu de + cot cong cu, chi dung khi do hut
 
 # --- Man xac minh tuoi sau khi Roblox mo ---------------------------------
 # Toa do pixel, dung cho man hinh 400x500. Doi do phan giai la phai do lai het.
-ROBLOX_SETTLE = 15           # giay cho Roblox ve xong truoc khi bam
+ROBLOX_SETTLE = 20           # giay cho Roblox ve xong truoc khi bam
 CONTINUE_BTN = (201, 322)    # nut Continue cua "Free item with an age check"
-AFTER_CONTINUE = 5           # giay cho banh xe chon ngay hien ra
+AFTER_CONTINUE = 7           # giay cho banh xe chon ngay hien ra
 
 WHEELS = {                   # ba banh xe chon ngay sinh
     "thang": (107, 244),
@@ -92,16 +92,16 @@ SCROLLS = {                  # so nac ngau nhien cho tung banh xe
     "ngay":  (1, 11),
     "nam":   (15, 20),
 }
-AFTER_WHEELS = 4             # giay cho sau khi cuon xong
+AFTER_WHEELS = 6             # giay cho sau khi cuon xong
 SUBMIT_BTN = (197, 394)      # nut xac nhan duoi man chon ngay sinh
 # Cho man dang ky ve XONG sau khi xac nhan ngay sinh. Truoc day khong co buoc
 # cho nao o day: bam xac nhan xong la bam ngay o username, trong khi man hinh
 # con dang chuyen -> cu bam roi vao khoang khong.
-AFTER_SUBMIT = 12
+AFTER_SUBMIT = 16
 
 # --- Man dang ky sau khi qua xac minh tuoi -------------------------------
 # Cung he toa do 400x500 nhu tren.
-STEP_PAUSE = 3               # giay giua moi thao tac
+STEP_PAUSE = 4               # giay giua moi thao tac
 USERNAME_FIELD = (201, 266)
 GENDER_FEMALE = (113, 290)   # icon ben trai
 GENDER_MALE = (288, 290)     # icon ben phai
@@ -109,7 +109,7 @@ SIGNUP_CONTINUE = (200, 381)
 
 # --- Man "Create Account" / tao mat khau ---------------------------------
 # Sau khi bam Continue, Roblox mat mot luc moi ve xong man nay.
-PASSWORD_WAIT = 18
+PASSWORD_WAIT = 24
 # Man nay tu focus san vao o mat khau -> go thang, khong can bam truoc.
 # Nut Done. Toa do UOC LUONG tu anh chup, chua do tren may that -- xem chu
 # thich trong flow(). Nut cao ~40px nen lech 10-15px van trung.
@@ -131,10 +131,10 @@ def pause(seconds: float, log: Log | None = None, why: str = "") -> None:
 
 # --- Vong lap -------------------------------------------------------------
 ROUNDS = 0                   # 0 = chay khong gioi han, Ctrl+C de dung
-ROUND_PAUSE = 5              # giay cho sau khi bam Done, truoc khi tat may ao
+ROUND_PAUSE = 8              # giay cho sau khi bam Done, truoc khi tat may ao
 MAX_FAILS = 3                # so vong hong LIEN TIEP truoc khi bo may ao do
 # Bat lai 4 may ao cung luc lam nghen dia y het luc dau -- rai ngau nhien ra.
-RESTART_JITTER = 10
+RESTART_JITTER = 14
 
 # Dat khi nguoi dung Ctrl+C. Thread dang chay se xong vong hien tai roi dung,
 # khong cat ngang giua chung de khoi bo lai may ao dang bat.
@@ -462,7 +462,7 @@ def flow(inst: Instance, log: Log) -> None:
     log(f"dung sau {n} vong, tao duoc {len(made)} tai khoan: {made}")
 
 
-def build_instances(console: LDConsole, do_clone: bool) -> list[Instance]:
+def build_instances(console: LDConsole, do_clone: bool = False) -> list[Instance]:
     src = console.find(SOURCE)
     if src is None:
         print(f"[FAIL] Khong co may ao {SOURCE!r}. Dang co:")
@@ -477,25 +477,20 @@ def build_instances(console: LDConsole, do_clone: bool) -> list[Instance]:
     print(f"Nguon: index={src.index} {src.name!r} {w}x{h}@{dpi}")
 
     instances = [Instance(console, src.index)]
-    if do_clone:
-        spec = Spec(width=w, height=h, dpi=dpi, cpu=CPU, memory=MEMORY)
-        farm = Farm(console)
-        for i in range(CLONES):
-            name = f"{PREFIX}{i}"
+    spec = Spec(width=w, height=h, dpi=dpi, cpu=CPU, memory=MEMORY)
+    farm = Farm(console)
+    for i in range(CLONES):
+        name = f"{PREFIX}{i}"
+        info = console.find(name)
+        if info is None or do_clone:
             t0 = time.monotonic()
-            print(f"[{name}] copy tu {SOURCE}... (vai GB, doi vai phut)")
-            # Truyen index chu khong phai ten: `ldconsole copy --from` nhan index
-            # chac chan, con nhan ten thi tuy phien ban.
+            action = "re-copying" if info else "chua co may ao, dang copy"
+            print(f"[{name}] {action} tu {SOURCE}... (vai GB, doi vai phut)")
             inst = farm.ensure(name, spec, source=src.index)
             print(f"[{name}] xong sau {time.monotonic() - t0:.0f}s -> index={inst.index}")
-            instances.append(inst)
-    else:
-        for i in range(CLONES):
-            info = console.find(f"{PREFIX}{i}")
-            if info is None:
-                print(f"[FAIL] Chua co may ao {PREFIX}{i!r}. Chay lai voi --clone.")
-                sys.exit(1)
-            instances.append(Instance(console, info.index))
+        else:
+            inst = Instance(console, info.index)
+        instances.append(inst)
 
     print(f"Tong {len(instances)} may ao: {[i.index for i in instances]}\n")
     return instances

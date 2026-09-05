@@ -95,6 +95,7 @@ class App:
 
         self.log_q: queue.Queue[str] = queue.Queue()
         self.worker: threading.Thread | None = None
+        self.restart_pending = False   # dat khi bam Chay lai luc dang chay
 
         self._build_config()
         self._build_controls()
@@ -114,7 +115,6 @@ class App:
         self.var_rounds = tk.IntVar(value=0)
         self.var_clones = tk.IntVar(value=rf.CLONES)
         self.var_slow = tk.DoubleVar(value=1.0)
-        self.var_clone = tk.BooleanVar(value=False)
 
         row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
         ttk.Label(row, text="ldconsole:", width=10).pack(side="left")
@@ -134,17 +134,14 @@ class App:
         ttk.Label(row, text="He so cho:").pack(side="left", padx=(12, 0))
         ttk.Spinbox(row, from_=0.5, to=5, increment=0.5, width=5,
                     textvariable=self.var_slow).pack(side="left", padx=4)
-        ttk.Checkbutton(row, text="Clone truoc khi chay",
-                        variable=self.var_clone).pack(side="left", padx=(12, 0))
         self.config_widgets = f
 
     def _build_controls(self):
         f = ttk.Frame(self.root); f.pack(fill="x", padx=8, pady=4)
         self.btn_start = ttk.Button(f, text="▶ Bat dau", command=self._start)
-        self.btn_pause = ttk.Button(f, text="⏸ Tam dung", command=self._pause, state="disabled")
-        self.btn_stop = ttk.Button(f, text="⏹ Dung", command=self._stop, state="disabled")
+        self.btn_restart = ttk.Button(f, text="\U0001f504 Chay lai", command=self._restart)
         self.btn_export = ttk.Button(f, text="\U0001f4be Xuat TXT", command=self._export)
-        for b in (self.btn_start, self.btn_pause, self.btn_stop, self.btn_export):
+        for b in (self.btn_start, self.btn_restart, self.btn_export):
             b.pack(side="left", padx=4)
 
     def _build_status(self):
@@ -195,11 +192,24 @@ class App:
 
         self._set_config_state("disabled")
         self.btn_start.config(state="disabled")
-        self.btn_pause.config(state="normal", text="⏸ Tam dung")
-        self.btn_stop.config(state="normal")
 
         self.worker = threading.Thread(target=self._run, daemon=True)
         self.worker.start()
+
+    def _restart(self):
+        """Chay lai tu dau -- giong chay lai `python examples/roblox_flow.py`.
+
+        Dang chay: bao cac luong dung (xong vong hien tai) roi tu khoi dong lai
+        khi chung thoat -- viec khoi dong lai do _pump lo, khong chan GUI.
+        Dang ranh: chay ngay nhu Start.
+        """
+        if self._running():
+            self.restart_pending = True
+            rf.STOP.set()
+            rf.RESUME.set()   # go pause de luong thoat duoc o gate
+            rf.Log("main")("Chay lai: cho cac luong xong vong hien tai roi bat lai...")
+        else:
+            self._start()
 
     def _run(self):
         """Chay trong thread nen -- KHONG dung tkinter o day."""
@@ -213,7 +223,7 @@ class App:
                 f"({rf.STORE.count()} ban ghi)")
             console.global_setting(fps=30, audio=False, fast_play=True)
 
-            instances = rf.build_instances(console, self.var_clone.get())
+            instances = rf.build_instances(console)
             for slot, inst in enumerate(instances):
                 rf.WINDOW_SLOT[inst.index] = slot
 
@@ -231,20 +241,6 @@ class App:
             log(f"LOI: {type(exc).__name__}: {exc}")
         finally:
             sys.stdout, sys.stderr = old_out, old_err
-
-    def _pause(self):
-        if rf.RESUME.is_set():
-            rf.RESUME.clear()
-            self.btn_pause.config(text="▶ Tiep tuc")
-        else:
-            rf.RESUME.set()
-            self.btn_pause.config(text="⏸ Tam dung")
-
-    def _stop(self):
-        rf.STOP.set()
-        rf.RESUME.set()  # go pause de cac thread thoat duoc thay vi ket o gate
-        self.btn_stop.config(state="disabled")
-        rf.Log("main")("dang dung -- cho cac luong xong vong hien tai...")
 
     def _export(self):
         db = self.var_db.get()
@@ -285,16 +281,15 @@ class App:
             parts = [f"tong {st['tong']}", f"xong {done}",
                      f"co cookie {st['cookie']}", f"loi {failed}"]
             run = "DANG CHAY" if self._running() else "dung"
-            if self._running() and not rf.RESUME.is_set():
-                run = "TAM DUNG"
             self.var_status.set(f"[{run}]  " + " | ".join(parts))
 
-        # worker vua ket thuc -> mo lai nut
+        # worker vua ket thuc
         if not self._running() and self.btn_start["state"] == "disabled":
             self.btn_start.config(state="normal")
-            self.btn_pause.config(state="disabled", text="⏸ Tam dung")
-            self.btn_stop.config(state="disabled")
             self._set_config_state("normal")
+            if self.restart_pending:
+                self.restart_pending = False
+                self._start()   # khoi dong lai vong moi
 
         self.root.after(200, self._pump)
 
