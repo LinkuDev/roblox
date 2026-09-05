@@ -53,23 +53,52 @@ class Instance:
             return self.connect()
         return self._device
 
-    def _retry(self, fn, *a, **kw):
-        """Goi fn(device, ...), noi lai mot lan neu ket noi da rot.
+    # Loi ADB thuoc nhom "ket noi rot", khac han loi that su cua lenh. Bat theo
+    # chuoi vi adbutils nem chung mot class AdbError cho moi thu.
+    _TRANSIENT = (
+        "device not found",
+        "offline",
+        "unknown data",          # adb server dong ket noi giua chung
+        "connection reset",
+        "broken pipe",
+        "cannot connect",
+        "device still connecting",
+        "closed",
+    )
 
-        LDPlayer tha ket noi ADB giua chung -- adbd trong may ao khoi dong lai,
-        hoac LDPlayer doi cau hinh, hoac may ao vua reboot. adbutils cache
-        AdbDevice nen tu do tro di moi lenh deu nem 'device not found' du may ao
-        van chay binh thuong. Noi lai la xong; khong co lop nay thi ca farm chay
-        vai tieng se chet dan tung may mot.
+    def _retry(self, fn, *a, retries: int = 2, **kw):
+        """Goi fn(device, ...), noi lai neu ket noi rot.
+
+        LDPlayer tha ket noi ADB giua chung, va ban adb no ship kem la 1.0.31 --
+        rat cu, de dut khi bon may ao cung goi mot luc. adbutils cache AdbDevice
+        nen tu do tro di moi lenh deu hong du may ao van chay binh thuong.
+
+        Chi thu lai voi nhom loi ket noi; loi that su cua lenh van nem ra ngay.
         """
-        try:
-            return fn(self.device, *a, **kw)
-        except Exception as exc:
-            if "device not found" not in str(exc) and "offline" not in str(exc).lower():
-                raise
+        for attempt in range(retries + 1):
+            try:
+                return fn(self.device, *a, **kw)
+            except Exception as exc:
+                msg = str(exc).lower()
+                if not any(t in msg for t in self._TRANSIENT) or attempt >= retries:
+                    raise
+                self._device = None
+                time.sleep(1 + attempt * 2)
+                self.connect(retries=5, delay=2)
+
+    def restart(self, log=None) -> "Instance":
+        """Tat han roi bat lai. Dung khi muon chac may ao o trang thai sach.
+
+        Dung tiep mot may ao dang chay thi mang theo moi thu con sot lai cua
+        phien truoc: app dang mo do dang, VPN nua chung, dialog chua tat.
+        """
+        if self.console.is_running(self.index):
+            if log:
+                log("may ao dang chay -> tat roi bat lai")
+            self.console.quit(self.index)
+            self.console.wait_stopped(self.index)
             self._device = None
-            self.connect(retries=5, delay=2)
-            return fn(self.device, *a, **kw)
+        return self.start()
 
     def sh(self, cmd: str, timeout: float = 30.0) -> str:
         """adb shell, tu noi lai neu ket noi rot. Dung cai nay thay cho device.shell()."""

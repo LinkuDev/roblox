@@ -208,6 +208,27 @@ class LDConsole:
     def quit_all(self) -> None:
         self.run("quitall")
 
+    def wait_stopped(
+        self,
+        instance: int | str,
+        timeout: float = 60.0,
+        poll: float = 1.0,
+        settle: float = 8.0,
+    ) -> None:
+        """Doi may ao tat han. `quit` tra ve ngay, tien trinh con song them vai giay.
+
+        pid bien mat khoi list2 VAN CHUA du: VBox giu file handle them mot luc,
+        va lenh dung o dia trong khoang ay (copy) that bai khong ly do.
+        """
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            info = self.find(instance)
+            if info is None or not info.running:
+                time.sleep(settle)
+                return
+            time.sleep(poll)
+        raise TimeoutError(f"{instance} khong tat trong {timeout}s")
+
     def reboot(self, instance: int | str) -> None:
         self.run("reboot", *self._target(instance))
 

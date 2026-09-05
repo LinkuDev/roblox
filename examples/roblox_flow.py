@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ldauto import Farm, Instance, LDConsole, Log, Spec, report, run_parallel  # noqa: E402
+from ldauto import window  # noqa: E402
 
 # --------------------------------------------------------------------------
 LDCONSOLE = r"C:\LDPlayer\LDPlayer9\dnconsole.exe"
@@ -54,6 +55,14 @@ def status_says_on(text: str) -> bool:
 # duoc xoa (khong thi 4 may dung chung mot phien dang nhap), may goc thi khong
 # -- do la may ban dung tay, xoa la mat du lieu that.
 CLEAR_ROBLOX_ON: set[int] = set()
+REUSE = False                # --reuse: dung tiep may ao dang chay
+
+# index -> (x, y) goc tren trai cua so. Dat trong main() theo luoi WINDOW_COLS.
+WINDOW_POS: dict[int, tuple[int, int]] = {}
+WINDOW_NAME: dict[int, str] = {}
+WINDOW_COLS = 4              # 4 may nam ngang mot hang
+WINDOW_CELL = (340, 640)     # buoc nhay giua hai cua so, khong phai kich thuoc
+WINDOW_ORIGIN = (0, 0)
 # --------------------------------------------------------------------------
 
 
@@ -122,10 +131,22 @@ def connect_vpn(inst: Instance, log: Log) -> None:
 def flow(inst: Instance, log: Log) -> None:
     """Kich ban chay tren MOI may ao. Cac thread deu chay ham nay."""
 
-    # 1. bat may ao, doi Android san sang
+    # 1. bat may ao, doi Android san sang.
+    #    restart() thay vi start(): dung tiep may ao dang chay se mang theo moi
+    #    thu con sot lai cua phien truoc -- app mo do dang, VPN nua chung,
+    #    dialog chua tat. Bat lai tu dau re hon la doan xem con gi sot.
     log("dang bat may ao...")
-    inst.start()
+    inst.start() if REUSE else inst.restart(log)
     log(f"san sang -> {inst.serial}")
+
+    # 1b. keo cua so ve dung cho de 4 may khong de len nhau
+    pos = WINDOW_POS.get(inst.index)
+    if pos:
+        name = WINDOW_NAME.get(inst.index, "")
+        if window.place(name, *pos):
+            log(f"da dat cua so {name!r} vao {pos}")
+        else:
+            log(f"khong tim thay cua so ten {name!r} de keo -- bo qua")
     if CPU_LIMIT:
         inst.console.down_cpu(inst.index, CPU_LIMIT)
 
@@ -210,7 +231,21 @@ def main() -> int:
                     help="xoa du lieu Roblox tren MOI may, ke ca may goc")
     ap.add_argument("--keep-roblox-data", action="store_true",
                     help="khong xoa gi, ke ca tren clone moi tao")
+    ap.add_argument("--no-arrange", action="store_true",
+                    help="khong keo cua so, de LDPlayer tu dat")
+    ap.add_argument("--list-windows", action="store_true",
+                    help="in moi cua so dang mo roi thoat (de tim dung tieu de)")
+    ap.add_argument("--reuse", action="store_true",
+                    help="dung tiep may ao dang chay thay vi tat roi bat lai")
     args = ap.parse_args()
+
+    global REUSE
+    REUSE = args.reuse
+
+    if args.list_windows:
+        for hwnd, title, cls in window.list_windows():
+            print(f"  hwnd={hwnd:<10} class={cls:<28} title={title!r}")
+        return 0
 
     console = LDConsole(args.ldconsole)
 
@@ -229,6 +264,17 @@ def main() -> int:
         return 0
 
     instances = build_instances(console, args.clone)
+
+    if not args.no_arrange:
+        # Tieu de cua so LDPlayer chinh la ten may ao.
+        for inst, xy in zip(instances, window.grid(len(instances),
+                                                   cols=WINDOW_COLS,
+                                                   origin=WINDOW_ORIGIN,
+                                                   cell=WINDOW_CELL)):
+            info = console.find(inst.index)
+            WINDOW_POS[inst.index] = xy
+            WINDOW_NAME[inst.index] = info.name if info else str(inst.index)
+        print(f"Vi tri cua so: {[(WINDOW_NAME[i.index], WINDOW_POS[i.index]) for i in instances]}")
 
     if args.keep_roblox_data:
         pass
