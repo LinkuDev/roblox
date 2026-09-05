@@ -30,29 +30,32 @@ CPU, MEMORY, CPU_LIMIT = 2, 2048, 60
 STAGGER = 25               # giay giua moi may khi bat -- 4 may cung luc se nghen
 RESOLUTION = None          # None = giu nguyen theo may goc
 
-# Nhan Connect cua ExpressVPN. Script thu lan luot tu tren xuong; cai nao khop
-# truoc thi bam. Chay --dump-ui de xem app that su lo ra chu gi roi sua list nay.
+# Nut Connect cua ExpressVPN, lay tu --dump-ui. Day la TOGGLE: bam khi dang bat
+# thi no NGAT vpn -- vi vay connect_vpn() kiem tra trang thai truoc, khong bam mu.
 VPN_CONNECT_HINTS = [
-    {"desc": "Connect"},
-    {"text": "Connect"},
-    {"text": "Tap to connect"},
-    {"res_id": "connect_button"},
-    {"res_id": "connectButton"},
+    {"res_id": "vpn_connect_button"},
 ]
+VPN_STATUS_ID = "vpn_connection_status_text"   # 'Protected | 00:04:20' khi dang bat
 # --------------------------------------------------------------------------
 
 
 def connect_vpn(inst: Instance, log: Log) -> None:
-    """Mo ExpressVPN va bat toggle. Moc thanh cong la interface tun, khong phai chu tren man hinh."""
+    """Bat VPN neu chua bat.
+
+    Moc that su la interface tun co dia chi IP, khong phai chu tren man hinh:
+    app bao 'Connected' ma khong co tun nghia la duong ham chua dung duoc.
+    """
+    # Kiem tra TRUOC khi dung toi app. vpn_connect_button la toggle -- bam khi
+    # dang ket noi la ngat mat.
     if inst.vpn_connected():
-        log("VPN da len tu truoc, bo qua")
+        log("VPN da len san (tun co IP) -- khong dung toi nut Connect")
         return
 
     inst.start_app_adb(VPN_PKG)
     time.sleep(4)  # cho app ve xong man hinh chinh truoc khi dump UI
 
-    # Hop thoai "Connection request" cua he thong -- chi hien lan dau tren may chua
-    # tung bam OK. Clone ke thua consent tu may goc nen thuong khong gap.
+    # Hop thoai "Connection request" cua he thong -- chi hien tren may chua tung
+    # bam OK. Clone ke thua consent tu may goc nen thuong khong gap.
     for label in ("OK", "Allow", "Dong y"):
         if inst.tap_node(text=label):
             log(f"da bam '{label}' o hop thoai VPN cua he thong")
@@ -60,21 +63,25 @@ def connect_vpn(inst: Instance, log: Log) -> None:
             break
 
     nodes = inst.ui_nodes()
+    status = inst.find_node(res_id=VPN_STATUS_ID, nodes=nodes)
+    if status:
+        log(f"trang thai app: {status['text']!r}")
+
     for hint in VPN_CONNECT_HINTS:
         n = inst.find_node(**hint, nodes=nodes)
         if n:
-            log(f"bam Connect qua {hint} tai {n['center']}")
+            log(f"bam Connect ({hint}) tai {n['center']}")
             inst.tap(*n["center"])
             break
     else:
-        # ExpressVPN dat nut Connect la mot vong tron to giua man hinh. Khong tim
-        # duoc node thi bam giua -- kem chac chan, nen bao ro de con sua hint.
-        log("KHONG tim thay nut Connect qua uiautomator -> bam giua man hinh")
+        # Nut nguon nam giua man hinh, hoi cao hon tam. Kem chac chan hon han
+        # res_id nen phai bao ro la dang doan.
+        log("KHONG thay nut Connect qua uiautomator -> bam giua man hinh")
         log("   chay lai voi --dump-ui roi sua VPN_CONNECT_HINTS cho dung")
-        inst.tap_percent(50, 45)
+        inst.tap_percent(50, 39)
 
     inst.wait_vpn(timeout=90)
-    log("VPN da len (co interface tun)")
+    log("VPN da len (tun co IP)")
 
 
 def flow(inst: Instance, log: Log) -> None:

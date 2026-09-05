@@ -373,7 +373,12 @@ class Instance:
         App bao 'Connected' ma khong co tun0 nghia la duong ham chua dung duoc.
         """
         out = self.sh("ip addr", timeout=15)
-        return "tun0" in out or "tun1" in out
+        # Doi hoi interface tun CO DIA CHI IP, khong chi ton tai: tun0 co the
+        # nam do o trang thai DOWN tu phien truoc ma khong dan di dau ca.
+        for block in re.split(r"\n(?=\s*\d+:)", out):
+            if re.match(r"\s*\d+:\s*tun\d", block) and "inet " in block:
+                return True
+        return False
 
     def wait_vpn(self, timeout: float = 90.0, poll: float = 3.0) -> None:
         deadline = time.monotonic() + timeout
