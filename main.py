@@ -157,6 +157,9 @@ class App:
         self.btn_export = ttk.Button(f, text="\U0001f4be Xuat TXT", command=self._export)
         for b in (self.btn_start, self.btn_restart, self.btn_export):
             b.pack(side="left", padx=4)
+        # Dat tach han sang phai: bam nham nut nay la mat sach kho tai khoan.
+        self.btn_clear = ttk.Button(f, text="\U0001f5d1 Xoa DB", command=self._clear_db)
+        self.btn_clear.pack(side="right", padx=4)
 
     def _build_status(self):
         f = ttk.LabelFrame(self.root, text="Trang thai")
@@ -241,6 +244,53 @@ class App:
             log("=== da dung tat ca luong ===")
         except Exception as exc:
             log(f"LOI: {type(exc).__name__}: {exc}")
+
+    def _clear_db(self):
+        """Xoa toan bo ban ghi trong accounts.db."""
+        if self._running():
+            messagebox.showwarning(
+                "Dang chay", "Dung farm truoc da -- cac luong dang ghi vao DB.")
+            return
+
+        db = self.var_db.get()
+        if not os.path.exists(db):
+            messagebox.showerror("Loi", f"Khong thay DB:\n{os.path.abspath(db)}")
+            return
+
+        st = db_stats(db)
+        total, ck = st.get("tong", 0), st.get("cookie", 0)
+        if not total:
+            messagebox.showinfo("Trong", "DB khong co ban ghi nao de xoa.")
+            return
+
+        msg = (f"Xoa toan bo {total} ban ghi trong:\n{os.path.abspath(db)}\n\n"
+               f"Khong hoan tac duoc.")
+        if ck:
+            msg += (f"\n\nCANH BAO: {ck} acc co cookie. Do la credential song -- "
+                    f"xoa la mat han, khong lay lai duoc.\nNen bam 'Xuat TXT' truoc.")
+        if not messagebox.askyesno("Xac nhan xoa", msg, icon="warning", default="no"):
+            return
+
+        # Dong ket noi con mo tu lan chay truoc: VACUUM doi khong con ket noi
+        # nao khac dang mo file, khong thi bao 'database is locked'.
+        if getattr(rf, "STORE", None) is not None:
+            try:
+                rf.STORE.close()
+            except Exception:
+                pass
+            rf.STORE = None
+
+        try:
+            store = AccountStore(db)
+            n = store.clear()
+            store.close()
+        except Exception as exc:
+            messagebox.showerror("Loi", f"{type(exc).__name__}: {exc}")
+            return
+
+        rf.Log("main")(f"Da xoa {n} ban ghi khoi {os.path.abspath(db)}")
+        self.var_status.set("[dung]  DB trong")
+        messagebox.showinfo("Xong", f"Da xoa {n} ban ghi.")
 
     def _export(self):
         db = self.var_db.get()

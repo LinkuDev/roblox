@@ -187,6 +187,24 @@ class AccountStore:
             self._db.execute("DELETE FROM accounts WHERE username=?", (username,))
             self._db.commit()
 
+    def clear(self) -> int:
+        """Xoa MOI ban ghi, tra ve so ban ghi da xoa.
+
+        KHONG hoan tac duoc. Acc co cookie la credential song -- xuat ra file
+        truoc khi goi cai nay, mat roi la mat han.
+
+        VACUUM sau khi xoa: DELETE khong tra lai dung luong cho o dia, file
+        .db van giu nguyen kich thuoc cu. VACUUM phai chay NGOAI transaction
+        nen goi sau commit.
+        """
+        with self._lock:
+            n = self._db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
+            self._db.execute("DELETE FROM accounts")
+            self._db.commit()
+            self._db.execute("VACUUM")
+            self._db.commit()
+        return n
+
     def get(self, username: str) -> sqlite3.Row | None:
         with self._lock:
             cur = self._db.execute(
