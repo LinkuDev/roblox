@@ -3,6 +3,12 @@ REM ============================================================
 REM Dong goi main.py -> RobloxFarm.exe   (chay tren Windows)
 REM ============================================================
 
+REM Tat exe cu TRUOC khi build. PyInstaller xoa dist\RobloxFarm.exe roi ghi de;
+REM file dang chay thi Windows khoa lai -> PermissionError [WinError 5]. App
+REM build voi --windowed nen chay an, khong co cua so console de nhin thay.
+taskkill /F /IM RobloxFarm.exe >nul 2>&1
+if not errorlevel 1 echo Da tat RobloxFarm.exe dang chay.
+
 pip install pyinstaller
 
 REM YEU CAU: Python >= 3.10.1 (ban 3.10.0 co bug 'dis' lam PyInstaller vo khi
@@ -32,7 +38,26 @@ pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --exclude-module apkutils ^
   main.py
 
+REM Phai kiem tra: khong co doan nay thi build hong van in "Xong", va lan sau
+REM chay nham exe cu ma khong biet.
+if errorlevel 1 goto :hong
+if not exist "dist\RobloxFarm.exe" goto :hong
+
 echo.
 echo === Xong. File o: dist\RobloxFarm.exe ===
 echo Chep RobloxFarm.exe ra thu muc lam viec; accounts.db se nam canh no.
 pause
+exit /b 0
+
+:hong
+echo.
+echo === BUILD HONG -- dist\RobloxFarm.exe KHONG duoc tao ra ===
+echo.
+echo Neu loi la "PermissionError: [WinError 5] Access is denied":
+echo   file dang bi khoa. Thu lan luot:
+echo     1. taskkill /F /IM RobloxFarm.exe
+echo     2. dong cua so Explorer dang mo thu muc dist
+echo     3. tam tat Windows Defender realtime scan
+echo.
+pause
+exit /b 1
