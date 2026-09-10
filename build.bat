@@ -9,6 +9,7 @@ REM build voi --windowed nen chay an, khong co cua so console de nhin thay.
 taskkill /F /IM RobloxFarm.exe >nul 2>&1
 if not errorlevel 1 echo Da tat RobloxFarm.exe dang chay.
 
+pip install -r requirements.txt
 pip install pyinstaller
 
 REM YEU CAU: Python >= 3.10.1 (ban 3.10.0 co bug 'dis' lam PyInstaller vo khi
@@ -29,9 +30,7 @@ pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --hidden-import ldauto.accounts ^
   --hidden-import ldauto.cookie ^
   --hidden-import ldauto.window ^
-  --hidden-import adbutils ^
-  --collect-binaries adbutils ^
-  --collect-data adbutils ^
+  --collect-all adbutils ^
   --exclude-module cv2 ^
   --exclude-module numpy ^
   --exclude-module apkutils2 ^
