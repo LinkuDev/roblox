@@ -462,41 +462,56 @@ def flow(inst: Instance, log: Log) -> None:
     log(f"dung sau {n} vong, tao duoc {len(made)} tai khoan: {made}")
 
 
-def build_instances(console: LDConsole, do_clone: bool = False) -> list[Instance]:
-    src = console.find(SOURCE)
-    if src is None:
-        print(f"[FAIL] Khong co may ao {SOURCE!r}. Dang co:")
-        for i in console.list2():
-            print(f"    index={i.index} name={i.name!r}")
-        sys.exit(1)
+def build_instances(console: LDConsole, sources: list[str] | None = None,
+                    do_clone: bool = False) -> list[Instance]:
+    """Voi MOI may nguon: lay chinh no + clone CLONES may tu no.
 
-    if RESOLUTION:
-        w, h, dpi = RESOLUTION
-    else:
-        w, h, dpi = src.width or 400, src.height or 500, src.dpi or 160
-    print(f"Nguon: index={src.index} {src.name!r} {w}x{h}@{dpi}")
+    sources: danh sach ten may nguon, vd ["roblox", "roblox2"]. None -> [SOURCE].
+    Clone dat ten theo nguon de khong dung nhau giua cac nguon:
+        roblox  -> roblox_bot0, roblox_bot1, roblox_bot2
+        roblox2 -> roblox2_bot0, ...
+    """
+    if sources is None:
+        sources = [SOURCE]
 
-    instances = [Instance(console, src.index)]
-    spec = Spec(width=w, height=h, dpi=dpi, cpu=CPU, memory=MEMORY)
     farm = Farm(console)
-    for i in range(CLONES):
-        name = f"{PREFIX}{i}"
-        info = console.find(name)
-        if info is None or do_clone:
-            t0 = time.monotonic()
-            action = "re-copying" if info else "chua co may ao, dang copy"
-            print(f"[{name}] {action} tu {SOURCE}... (vai GB, doi vai phut)")
-            inst = farm.ensure(name, spec, source=src.index)
-            print(f"[{name}] xong sau {time.monotonic() - t0:.0f}s -> index={inst.index}")
-        else:
-            inst = Instance(console, info.index)
-        instances.append(inst)
+    instances: list[Instance] = []
+    for src_name in sources:
+        src = console.find(src_name)
+        if src is None:
+            print(f"[FAIL] Khong co may ao {src_name!r}. Dang co:")
+            for i in console.list2():
+                print(f"    index={i.index} name={i.name!r}")
+            sys.exit(1)
 
-    print(f"Tong {len(instances)} may ao: {[i.index for i in instances]}\n")
+        if RESOLUTION:
+            w, h, dpi = RESOLUTION
+        else:
+            w, h, dpi = src.width or 400, src.height or 500, src.dpi or 160
+        print(f"Nguon: index={src.index} {src.name!r} {w}x{h}@{dpi}")
+
+        instances.append(Instance(console, src.index))
+        spec = Spec(width=w, height=h, dpi=dpi, cpu=CPU, memory=MEMORY)
+        for i in range(CLONES):
+            name = f"{src_name}_{PREFIX}{i}"
+            info = console.find(name)
+            if info is None or do_clone:
+                t0 = time.monotonic()
+                action = "re-copying" if info else "chua co may ao, dang copy"
+                print(f"[{name}] {action} tu {src_name}... (vai GB, doi vai phut)")
+                inst = farm.ensure(name, spec, source=src.index)
+                print(f"[{name}] xong sau {time.monotonic() - t0:.0f}s -> index={inst.index}")
+            else:
+                inst = Instance(console, info.index)
+            instances.append(inst)
+
+    print(f"Tong {len(instances)} may ao ({len(sources)} nguon): "
+          f"{[i.index for i in instances]}\n")
     return instances
 
 
-def run_farm(console: LDConsole, *, do_clone: bool = False, arrange: bool = True,
+def run_farm(console: LDConsole, *, sources: list[str] | None = None,
+             do_clone: bool = False, arrange: bool = True,
              clear_mode: str = "all", reuse: bool = False,
              stagger: float | None = None) -> list:
     """Toan bo orchestration dung CHUNG cho CLI (main) va GUI (main.py).
@@ -507,7 +522,7 @@ def run_farm(console: LDConsole, *, do_clone: bool = False, arrange: bool = True
     clear_mode: 'all' xoa Roblox tren moi may | 'clones' chi clone | 'none' khong
                 xoa. Xoa de moi vong la mot phien dang nhap sach.
     """
-    instances = build_instances(console, do_clone)
+    instances = build_instances(console, sources, do_clone)
 
     if arrange:
         for slot, inst in enumerate(instances):

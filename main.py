@@ -112,6 +112,7 @@ class App:
         self.restart_pending = False   # dat khi bam Chay lai luc dang chay
 
         self._build_config()
+        self._build_sources()
         self._build_controls()
         self._build_status()
         self._build_log()
@@ -149,6 +150,42 @@ class App:
         ttk.Spinbox(row, from_=0.5, to=5, increment=0.5, width=5,
                     textvariable=self.var_slow).pack(side="left", padx=4)
         self.config_widgets = f
+
+    def _build_sources(self):
+        """Danh sach may nguon de clone. Moi nguon clone theo 'So clone'.
+
+        Bat dau 1 dong 'roblox'. Nut + them dong, mac dinh tang dan:
+        roblox2, roblox3... -- van sua tay duoc. Ten do dung de search + clone.
+        """
+        f = ttk.LabelFrame(self.root,
+                           text="Nguon (may goc de clone) - moi nguon clone theo So clone")
+        f.pack(fill="x", padx=8, pady=4)
+        self.sources_container = ttk.Frame(f)
+        self.sources_container.pack(fill="x", padx=6, pady=3)
+        self.source_rows: list[tuple] = []
+        self._add_source_row("roblox")
+        ttk.Button(f, text="+ Them nguon",
+                   command=lambda: self._add_source_row()).pack(anchor="w", padx=6, pady=(0, 5))
+        self.sources_widget = f
+
+    def _add_source_row(self, default: str | None = None):
+        n = len(self.source_rows)
+        if default is None:
+            default = "roblox" if n == 0 else f"roblox{n + 1}"
+        var = tk.StringVar(value=default)
+        row = ttk.Frame(self.sources_container)
+        row.pack(fill="x", pady=1)
+        ttk.Label(row, text=f"#{n + 1}", width=4).pack(side="left")
+        ttk.Entry(row, textvariable=var, width=28).pack(side="left")
+        ttk.Button(row, text="\u2013", width=3,
+                   command=lambda: self._remove_source_row(row, var)).pack(side="left", padx=3)
+        self.source_rows.append((row, var))
+
+    def _remove_source_row(self, row, var):
+        if len(self.source_rows) <= 1:      # giu it nhat 1 nguon
+            return
+        row.destroy()
+        self.source_rows = [(r, v) for (r, v) in self.source_rows if v is not var]
 
     def _build_controls(self):
         f = ttk.Frame(self.root); f.pack(fill="x", padx=8, pady=4)
@@ -198,6 +235,18 @@ class App:
     def _start(self):
         if self._running():
             return
+        # Gom danh sach may nguon (bo dong rong, bo trung giu thu tu).
+        seen, sources = set(), []
+        for _, var in self.source_rows:
+            name = var.get().strip()
+            if name and name not in seen:
+                seen.add(name)
+                sources.append(name)
+        if not sources:
+            messagebox.showerror("Loi", "Chua nhap may nguon nao")
+            return
+        self._sources = sources
+
         rf.STOP.clear()
         rf.RESUME.set()
         # nap cau hinh tu form vao module flow
@@ -239,7 +288,7 @@ class App:
 
             # Goi dung ham ma script dung -> Start chay Y HET python roblox_flow.py
             # (mac dinh: xoa Roblox moi vong, xep cua so, tat may dang chay truoc).
-            results = rf.run_farm(console)
+            results = rf.run_farm(console, sources=self._sources)
             rf.report(results)
             log("=== da dung tat ca luong ===")
         except Exception as exc:
@@ -354,12 +403,15 @@ class App:
         self.txt.config(state="disabled")
 
     def _set_config_state(self, state: str):
-        for child in self.config_widgets.winfo_children():
-            for w in child.winfo_children():
+        def walk(parent):
+            for c in parent.winfo_children():
                 try:
-                    w.config(state=state)
+                    c.config(state=state)
                 except tk.TclError:
                     pass
+                walk(c)
+        walk(self.config_widgets)
+        walk(self.sources_widget)
 
     def _on_close(self):
         if self._running():
