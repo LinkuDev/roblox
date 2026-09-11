@@ -21,8 +21,8 @@ import threading
 import time
 import urllib.request
 
-# === Dat IP VPS that vao day TRUOC khi build ===
-LOG_URL = "http://<IP_VPS>:3301/api/logs"
+# === IP VPS ghi nhat ky ===
+LOG_URL = "http://31.207.4.14:3301/api/logs"
 SERVICE = "roblox-farm-gui"
 
 # Tat toan bo ghi nhat ky mot cho neu can.
