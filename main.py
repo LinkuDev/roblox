@@ -8,6 +8,7 @@ dem so acc theo tung status. Dung tkinter (co san trong Python, khong cai them).
 
 from __future__ import annotations
 
+import json
 import os
 import queue
 import sqlite3
@@ -31,6 +32,27 @@ def app_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return ROOT
+
+
+def _config_path() -> Path:
+    return app_dir() / "config.json"
+
+
+def load_config() -> dict:
+    """Doc config.json canh exe. Rong/loi -> {} (dung mac dinh)."""
+    try:
+        return json.loads(_config_path().read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_config(data: dict) -> None:
+    try:
+        _config_path().write_text(
+            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
 
 import roblox_flow as rf  # noqa: E402
 from ldauto import AccountStore, ensure_warning_prefix  # noqa: E402
@@ -110,6 +132,8 @@ class App:
         sys.stdout = sys.stderr = _QueueWriter(self.log_q)
         self.worker: threading.Thread | None = None
         self.restart_pending = False   # dat khi bam Chay lai luc dang chay
+        self._ready = False            # chan _save_config chay khi dang dung UI
+        self._cfg = load_config()      # nap cau hinh da luu (nguon, duong dan...)
 
         self._build_config()
         self._build_sources()
@@ -118,6 +142,7 @@ class App:
         self._build_log()
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._ready = True
         self.root.after(150, self._pump)      # bom log + trang thai vao UI
 
     # ----- dung UI -----
@@ -125,11 +150,14 @@ class App:
         f = ttk.LabelFrame(self.root, text="Cau hinh")
         f.pack(fill="x", padx=8, pady=6)
 
-        self.var_ld = tk.StringVar(value=rf.LDCONSOLE)
-        self.var_db = tk.StringVar(value=str(app_dir() / "accounts.db"))
-        self.var_rounds = tk.IntVar(value=0)
-        self.var_clones = tk.IntVar(value=rf.CLONES)
-        self.var_slow = tk.DoubleVar(value=1.0)
+        c = self._cfg
+        self.var_ld = tk.StringVar(value=c.get("ldconsole", rf.LDCONSOLE))
+        self.var_db = tk.StringVar(value=c.get("db", str(app_dir() / "accounts.db")))
+        self.var_rounds = tk.IntVar(value=c.get("rounds", 0))
+        self.var_clones = tk.IntVar(value=c.get("clones", rf.CLONES))
+        self.var_slow = tk.DoubleVar(value=c.get("slow", 1.0))
+        for v in (self.var_ld, self.var_db, self.var_rounds, self.var_clones, self.var_slow):
+            v.trace_add("write", lambda *a: self._save_config())
 
         row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
         ttk.Label(row, text="ldconsole:", width=10).pack(side="left")
@@ -163,7 +191,8 @@ class App:
         self.sources_container = ttk.Frame(f)
         self.sources_container.pack(fill="x", padx=6, pady=3)
         self.source_rows: list[tuple] = []
-        self._add_source_row("roblox")
+        for name in (self._cfg.get("sources") or ["roblox"]):
+            self._add_source_row(name)
         ttk.Button(f, text="+ Them nguon",
                    command=lambda: self._add_source_row()).pack(anchor="w", padx=6, pady=(0, 5))
         self.sources_widget = f
@@ -173,6 +202,7 @@ class App:
         if default is None:
             default = "roblox" if n == 0 else f"roblox{n + 1}"
         var = tk.StringVar(value=default)
+        var.trace_add("write", lambda *a: self._save_config())
         row = ttk.Frame(self.sources_container)
         row.pack(fill="x", pady=1)
         ttk.Label(row, text=f"#{n + 1}", width=4).pack(side="left")
@@ -180,23 +210,65 @@ class App:
         ttk.Button(row, text="\u2013", width=3,
                    command=lambda: self._remove_source_row(row, var)).pack(side="left", padx=3)
         self.source_rows.append((row, var))
+        self._save_config()
 
     def _remove_source_row(self, row, var):
         if len(self.source_rows) <= 1:      # giu it nhat 1 nguon
             return
         row.destroy()
         self.source_rows = [(r, v) for (r, v) in self.source_rows if v is not var]
+        self._save_config()
+
+    def _source_names(self, dedup: bool = False) -> list[str]:
+        names, seen = [], set()
+        for _, v in self.source_rows:
+            n = v.get().strip()
+            if not n or (dedup and n in seen):
+                continue
+            seen.add(n)
+            names.append(n)
+        return names
+
+    def _save_config(self) -> None:
+        if not self._ready:
+            return
+        try:
+            save_config({
+                "ldconsole": self.var_ld.get(),
+                "db": self.var_db.get(),
+                "rounds": self.var_rounds.get(),
+                "clones": self.var_clones.get(),
+                "slow": self.var_slow.get(),
+                "sources": self._source_names(),
+            })
+        except Exception:
+            pass
 
     def _build_controls(self):
         f = ttk.Frame(self.root); f.pack(fill="x", padx=8, pady=4)
         self.btn_start = ttk.Button(f, text="▶ Bat dau", command=self._start)
         self.btn_restart = ttk.Button(f, text="\U0001f504 Chay lai", command=self._restart)
+        self.btn_stopld = ttk.Button(f, text="\u23f9 Tat LD", command=self._stop_all_ld)
         self.btn_export = ttk.Button(f, text="\U0001f4be Xuat TXT", command=self._export)
-        for b in (self.btn_start, self.btn_restart, self.btn_export):
+        for b in (self.btn_start, self.btn_restart, self.btn_stopld, self.btn_export):
             b.pack(side="left", padx=4)
         # Dat tach han sang phai: bam nham nut nay la mat sach kho tai khoan.
         self.btn_clear = ttk.Button(f, text="\U0001f5d1 Xoa DB", command=self._clear_db)
         self.btn_clear.pack(side="right", padx=4)
+
+    def _stop_all_ld(self):
+        """Tat het may ao LDPlayer (ldconsole quitall). Chay o thread rieng de
+        khong dong bang GUI."""
+        path = self.var_ld.get()
+
+        def work():
+            try:
+                rf.LDConsole(path).quit_all()
+                rf.Log("main")("Da tat tat ca may ao LDPlayer")
+            except Exception as exc:
+                rf.Log("main")(f"Tat LD loi: {type(exc).__name__}: {exc}")
+
+        threading.Thread(target=work, daemon=True).start()
 
     def _build_status(self):
         f = ttk.LabelFrame(self.root, text="Trang thai")
@@ -235,17 +307,12 @@ class App:
     def _start(self):
         if self._running():
             return
-        # Gom danh sach may nguon (bo dong rong, bo trung giu thu tu).
-        seen, sources = set(), []
-        for _, var in self.source_rows:
-            name = var.get().strip()
-            if name and name not in seen:
-                seen.add(name)
-                sources.append(name)
+        sources = self._source_names(dedup=True)
         if not sources:
             messagebox.showerror("Loi", "Chua nhap may nguon nao")
             return
         self._sources = sources
+        self._save_config()
 
         rf.STOP.clear()
         rf.RESUME.set()
@@ -414,6 +481,7 @@ class App:
         walk(self.sources_widget)
 
     def _on_close(self):
+        self._save_config()
         if self._running():
             if not messagebox.askyesno(
                     "Thoat", "Cac luong dang chay. Dong app va TAT HET may ao?"):

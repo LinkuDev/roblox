@@ -66,6 +66,7 @@ logs/
 # Commit config.example.py lam mau, khong commit ban that.
 config.py
 config.local.py
+config.json
 .env
 accounts.txt
 proxies.txt
