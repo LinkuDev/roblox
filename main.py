@@ -14,6 +14,7 @@ import queue
 import sqlite3
 import sys
 import threading
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -56,6 +57,7 @@ def save_config(data: dict) -> None:
 
 import roblox_flow as rf  # noqa: E402
 from ldauto import AccountStore, ensure_warning_prefix  # noqa: E402
+from ldauto import telemetry  # noqa: E402
 
 
 class _QueueWriter:
@@ -143,6 +145,13 @@ class App:
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self._ready = True
+
+        # Ghi nhan mo app + moc so acc luc mo, de tinh "lam duoc bao nhieu acc"
+        # khi dong app.
+        self._t_start = time.time()
+        self._t_baseline = db_stats(self.var_db.get()).get("tong", 0)
+        telemetry.log("app_open", accounts_total=self._t_baseline)
+
         self.root.after(150, self._pump)      # bom log + trang thai vao UI
 
     # ----- dung UI -----
@@ -276,6 +285,12 @@ class App:
         self.var_status = tk.StringVar(value="chua chay")
         ttk.Label(f, textvariable=self.var_status, font=("TkDefaultFont", 10)).pack(
             anchor="w", padx=8, pady=4)
+        # Thong bao minh bach: cong cu co ghi nhan hoat dong (mo app, so acc) de
+        # bao cao nang suat. Giu dong nay de nhan vien biet -- dung/hop le hon.
+        ttk.Label(f, text="* Hoat dong (mo app, so acc, thoi luong) duoc ghi nhan "
+                          "de bao cao nang suat.",
+                  foreground="#888", font=("TkDefaultFont", 8)).pack(
+            anchor="w", padx=8, pady=(0, 4))
 
     def _build_log(self):
         f = ttk.LabelFrame(self.root, text="Nhat ky")
@@ -486,15 +501,28 @@ class App:
             if not messagebox.askyesno(
                     "Thoat", "Cac luong dang chay. Dong app va TAT HET may ao?"):
                 return
-        # 1. Bao cac luong dung (chung la daemon -> chet theo tien trinh, nhung
+        # 1. Ghi nhan dong app: da lam duoc bao nhieu acc, chay bao lau.
+        st = db_stats(self.var_db.get())
+        t_log = telemetry.log(
+            "app_close",
+            accounts_total=st.get("tong", 0),
+            accounts_done=st.get("done", 0),
+            accounts_cookie=st.get("cookie", 0),
+            created_this_session=st.get("tong", 0) - getattr(self, "_t_baseline", 0),
+            duration_sec=int(time.time() - getattr(self, "_t_start", time.time())),
+        )
+        # 2. Bao cac luong dung (chung la daemon -> chet theo tien trinh, nhung
         #    set STOP de chung khong con gui lenh trong luc dang tat may ao).
         rf.STOP.set()
         rf.RESUME.set()
-        # 2. Tat het may ao LDPlayer (ldconsole quitall) truoc khi thoat.
+        # 3. Tat het may ao LDPlayer (ldconsole quitall) truoc khi thoat.
         try:
             rf.LDConsole(self.var_ld.get()).quit_all()
         except Exception:
             pass
+        # Cho su kien dong app gui xong (toi da 3s) truoc khi thoat tien trinh.
+        if t_log is not None:
+            t_log.join(timeout=3)
         self.root.destroy()
 
 
