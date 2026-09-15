@@ -201,6 +201,16 @@ class Instance:
         # swipe tai cho = nhan giu; adb khong co lenh long-press rieng.
         self._retry(lambda d: d.swipe(x, y, x, y, duration))
 
+    def hold(self, x: int, y: int, seconds: float = 8.0) -> None:
+        """Nhan giu tai (x, y) trong `seconds` giay (cho captcha 'hold to confirm').
+
+        Dung `input swipe` diem dau = diem cuoi: Android giu cham tu ACTION_DOWN
+        toi het thoi gian roi moi ACTION_UP. Goi qua sh() voi timeout du dai de
+        lenh khong bi cat giua chung khi giu lau.
+        """
+        ms = int(seconds * 1000)
+        self.sh(f"input swipe {x} {y} {x} {y} {ms}", timeout=seconds + 20)
+
     def screen_resolution(self) -> tuple[int, int]:
         """Doc do phan giai that tu trong Android (co cache).
 

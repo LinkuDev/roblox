@@ -107,9 +107,15 @@ GENDER_FEMALE = (113, 290)   # icon ben trai
 GENDER_MALE = (288, 290)     # icon ben phai
 SIGNUP_CONTINUE = (200, 381)
 
+# --- Man "Security" (nhan giu de xac nhan la nguoi that) -----------------
+# Hien ra SAU khi bam Continue o man dang ky, TRUOC man tao mat khau.
+SECURITY_WAIT = 24           # giay cho man Security hien ra sau khi bam Continue
+                             # (lau nhu man tao mat khau truoc day)
+HOLD_BTN = (200, 200)        # nut xanh "Hold the button" (400x500) - UOC LUONG tu anh
+HOLD_SECONDS = 8             # giu nut 8 giay
+AFTER_HOLD = 20              # doi 20 giay sau khi giu, roi moi nhap mat khau
+
 # --- Man "Create Account" / tao mat khau ---------------------------------
-# Sau khi bam Continue, Roblox mat mot luc moi ve xong man nay.
-PASSWORD_WAIT = 24
 # Man nay tu focus san vao o mat khau -> go thang, khong can bam truoc.
 # Nut Done. Toa do UOC LUONG tu anh chup, chua do tren may that -- xem chu
 # thich trong flow(). Nut cao ~40px nen lech 10-15px van trung.
@@ -351,11 +357,16 @@ def one_round(inst: Instance, log: Log) -> str:
     STORE.update(acc.username, gender=gender, status="username_set")
     lap(f"xong man dang ky ({acc.username})")
 
+    # 6b. Man "Security": nhan giu nut de xac nhan la nguoi that.
+    pause(SECURITY_WAIT, log, "cho man Security hien ra")
+    log(f"nhan giu nut Security {HOLD_SECONDS}s tai {HOLD_BTN}")
+    inst.hold(*HOLD_BTN, seconds=HOLD_SECONDS)
+    pause(AFTER_HOLD, log, "cho sau khi giu nut Security, truoc khi nhap mat khau")
+    lap("xong man Security")
+
     # 7. Man "Create Account": nhap mat khau roi bam Done.
     #    Mat khau sinh ra da thoa ca ba luat man hinh nay kiem: >= 8 ky tu,
     #    khong don gian, khong trung username (xem random_password()).
-    pause(PASSWORD_WAIT, log, "cho man tao mat khau")
-
     log(f"go mat khau ({len(acc.password)} ky tu)")
     inst.text(acc.password)
     pause(STEP_PAUSE)
