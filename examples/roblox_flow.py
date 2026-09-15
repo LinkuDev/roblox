@@ -111,7 +111,7 @@ SIGNUP_CONTINUE = (200, 381)
 # Hien ra SAU khi bam Continue o man dang ky, TRUOC man tao mat khau.
 SECURITY_WAIT = 24           # giay cho man Security hien ra sau khi bam Continue
                              # (lau nhu man tao mat khau truoc day)
-HOLD_BTN = (200, 200)        # nut xanh "Hold the button" (400x500) - UOC LUONG tu anh
+HOLD_BTN = (200, 155)        # nut xanh "Press and hold" (400x500) - UOC LUONG tu anh
 HOLD_SECONDS = 8             # giu nut 8 giay
 AFTER_HOLD = 20              # doi 20 giay sau khi giu, roi moi nhap mat khau
 
