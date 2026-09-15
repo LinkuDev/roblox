@@ -201,15 +201,20 @@ class Instance:
         # swipe tai cho = nhan giu; adb khong co lenh long-press rieng.
         self._retry(lambda d: d.swipe(x, y, x, y, duration))
 
-    def hold(self, x: int, y: int, seconds: float = 8.0) -> None:
+    def hold(self, x: int, y: int, seconds: float = 8.0, drift: int = 3) -> None:
         """Nhan giu tai (x, y) trong `seconds` giay (cho captcha 'hold to confirm').
 
-        Dung `input swipe` diem dau = diem cuoi: Android giu cham tu ACTION_DOWN
-        toi het thoi gian roi moi ACTION_UP. Goi qua sh() voi timeout du dai de
-        lenh khong bi cat giua chung khi giu lau.
+        `input swipe` la MOT cham lien tuc: ACTION_DOWN -> cac ACTION_MOVE noi
+        suy doc duong -> ACTION_UP. De diem cuoi lech `drift` px so voi diem dau
+        thi trong luc giu co chuyen dong nhe -> giong ngon tay that hon la giu
+        dung im (captcha hay do chuyen dong de phan biet nguoi/may).
+
+        drift=0 -> giu dung im nhu cu. drift nho (2-4px) van nam trong nut.
+        timeout du dai de lenh shell khong bi cat giua chung khi giu lau.
         """
         ms = int(seconds * 1000)
-        self.sh(f"input swipe {x} {y} {x} {y} {ms}", timeout=seconds + 20)
+        self.sh(f"input swipe {x} {y} {x + drift} {y + drift} {ms}",
+                timeout=seconds + 20)
 
     def screen_resolution(self) -> tuple[int, int]:
         """Doc do phan giai that tu trong Android (co cache).
