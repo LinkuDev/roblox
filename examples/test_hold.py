@@ -41,6 +41,10 @@ def main() -> int:
                     help="in mau (R,G,B) tai (x,y) roi thoat -- de xem nut co xanh khong")
     ap.add_argument("--wait", action="store_true",
                     help="test detect: doi toi khi pixel (x,y) thanh xanh roi bao thay")
+    ap.add_argument("--twice", action="store_true",
+                    help="giu 2 lan: giu -> doi --repeat-wait -> giu lai (nhu flow)")
+    ap.add_argument("--repeat-wait", type=float, default=17.0,
+                    help="giay cho giua 2 lan giu (khi --twice)")
     ap.add_argument("--countdown", type=int, default=3,
                     help="dem nguoc truoc khi bat dau (giay)")
     args = ap.parse_args()
@@ -102,10 +106,16 @@ def main() -> int:
         print(f"TAP tai ({args.x}, {args.y}) -- nhin nut co nhay/phan ung khong")
         inst.tap(args.x, args.y)
     else:
-        print(f"HOLD tai ({args.x}, {args.y}) trong {args.sec}s, drift={args.drift}px...")
-        t0 = time.time()
-        inst.hold(args.x, args.y, seconds=args.sec, drift=args.drift)
-        print(f"  giu xong sau {time.time() - t0:.1f}s")
+        n_holds = 2 if args.twice else 1
+        for i in range(1, n_holds + 1):
+            print(f"HOLD lan {i}/{n_holds} tai ({args.x}, {args.y}) "
+                  f"trong {args.sec}s, drift={args.drift}px...")
+            t0 = time.time()
+            inst.hold(args.x, args.y, seconds=args.sec, drift=args.drift)
+            print(f"  giu xong sau {time.time() - t0:.1f}s")
+            if i < n_holds:
+                print(f"  doi {args.repeat_wait}s truoc lan giu sau...")
+                time.sleep(args.repeat_wait)
 
     print("\n=> Nhin man hinh LD xem ket qua:")
     print("   - Nut chay thanh tien trinh / doi mau roi qua man khac  -> OK")

@@ -119,7 +119,8 @@ BUTTON_BLUE_GAP = 40
 SECURITY_DETECT_TIMEOUT = 60  # giay toi da cho man Security hien ra
 SECURITY_POLL = 2             # giay giua moi lan kiem tra mau
 HOLD_SECONDS = 8              # giu nut 8 giay
-AFTER_HOLD = 20               # doi 20 giay sau khi giu, roi moi nhap mat khau
+HOLD_REPEAT_WAIT = 17         # doi 17 giay giua lan giu 1 va lan giu 2
+AFTER_HOLD = 20               # doi 20 giay sau lan giu cuoi, roi moi nhap mat khau
 
 # --- Man "Create Account" / tao mat khau ---------------------------------
 # Man nay tu focus san vao o mat khau -> go thang, khong can bam truoc.
@@ -386,9 +387,12 @@ def one_round(inst: Instance, log: Log) -> str:
         log(f"khong detect duoc nut Security sau {SECURITY_DETECT_TIMEOUT}s "
             f"-> giu mu tai {(x, y)}")
 
-    log(f"nhan giu {HOLD_SECONDS}s tai {(x, y)}")
+    log(f"nhan giu lan 1 {HOLD_SECONDS}s tai {(x, y)}")
     inst.hold(x, y, seconds=HOLD_SECONDS)
-    pause(AFTER_HOLD, log, "cho sau khi giu nut Security, truoc khi nhap mat khau")
+    pause(HOLD_REPEAT_WAIT, log, "cho giua 2 lan giu")
+    log(f"nhan giu lan 2 {HOLD_SECONDS}s tai {(x, y)}")
+    inst.hold(x, y, seconds=HOLD_SECONDS)
+    pause(AFTER_HOLD, log, "cho sau lan giu cuoi, truoc khi nhap mat khau")
     lap("xong man Security")
 
     # 7. Man "Create Account": nhap mat khau roi bam Done.
