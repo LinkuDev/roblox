@@ -118,7 +118,7 @@ HOLD_BTN = (200, 155)         # tam nut "Press and hold" (400x500)
 BUTTON_BLUE_GAP = 40
 SECURITY_DETECT_TIMEOUT = 60  # giay toi da cho man Security hien ra
 SECURITY_POLL = 2             # giay giua moi lan kiem tra mau
-HOLD_SECONDS = 8              # giu nut 8 giay
+HOLD_SECONDS = 17             # giu nut 17 giay
 HOLD_REPEAT_WAIT = 17         # doi 17 giay giua lan giu 1 va lan giu 2
 AFTER_HOLD = 20               # doi 20 giay sau lan giu cuoi, roi moi nhap mat khau
 
