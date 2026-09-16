@@ -37,6 +37,10 @@ def main() -> int:
                     help="xe dich px trong luc giu (0 = dung im)")
     ap.add_argument("--tap", action="store_true",
                     help="chi TAP 1 phat (de kiem tra toa do co trung nut khong)")
+    ap.add_argument("--pixel", action="store_true",
+                    help="in mau (R,G,B) tai (x,y) roi thoat -- de xem nut co xanh khong")
+    ap.add_argument("--wait", action="store_true",
+                    help="test detect: doi toi khi pixel (x,y) thanh xanh roi bao thay")
     ap.add_argument("--countdown", type=int, default=3,
                     help="dem nguoc truoc khi bat dau (giay)")
     args = ap.parse_args()
@@ -65,6 +69,30 @@ def main() -> int:
                   f"May nay {w}x{h} -> can quy doi toa do cho khop.")
     except Exception as exc:
         print(f"  (khong doc duoc do phan giai: {exc})")
+
+    if args.pixel:
+        r, g, b = inst.pixel(args.x, args.y)
+        blue = (b - r >= 40 and b - g >= 40 and b >= 70)
+        print(f"Mau tai ({args.x},{args.y}) = RGB({r},{g},{b})  "
+              f"-> {'XANH (nut)' if blue else 'khong phai xanh nut'}")
+        print("   (nut navy thi B troi hon han R,G. Neu dung nut ma bao 'khong "
+              "phai xanh' thi doi nguong BUTTON_BLUE_GAP hoac toa do.)")
+        return 0
+
+    if args.wait:
+        print(f"Doi pixel ({args.x},{args.y}) thanh xanh (toi da 60s)...")
+        end = time.time() + 60
+        while time.time() < end:
+            try:
+                r, g, b = inst.pixel(args.x, args.y)
+            except Exception:
+                r = g = b = -999
+            if b - r >= 40 and b - g >= 40 and b >= 70:
+                print(f"  THAY nut xanh RGB({r},{g},{b}) sau ket noi -> OK, detect duoc")
+                return 0
+            time.sleep(2)
+        print("  Het 60s chua thay xanh -> toa do sai hoac nguong chua hop.")
+        return 1
 
     for n in range(args.countdown, 0, -1):
         print(f"  bat dau sau {n}s... (dam bao dang o man Security)")

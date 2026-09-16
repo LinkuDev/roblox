@@ -109,11 +109,17 @@ SIGNUP_CONTINUE = (200, 381)
 
 # --- Man "Security" (nhan giu de xac nhan la nguoi that) -----------------
 # Hien ra SAU khi bam Continue o man dang ky, TRUOC man tao mat khau.
-SECURITY_WAIT = 24           # giay cho man Security hien ra sau khi bam Continue
-                             # (lau nhu man tao mat khau truoc day)
-HOLD_BTN = (200, 155)        # nut xanh "Press and hold" (400x500) - UOC LUONG tu anh
-HOLD_SECONDS = 8             # giu nut 8 giay
-AFTER_HOLD = 20              # doi 20 giay sau khi giu, roi moi nhap mat khau
+# Detect man Security bang MAU DIEM ANH (Roblox khong co widget tree, uiautomator
+# thay rong). Nut "Press and hold" la thanh xanh navy to -> doi toi khi pixel tai
+# HOLD_BTN thanh xanh roi moi nhan giu. Chi dung PIL (khong can cv2).
+HOLD_BTN = (200, 155)         # tam nut "Press and hold" (400x500)
+# Nut la xanh navy: kenh Blue troi hon Red va Green it nhat BUTTON_BLUE_GAP.
+# Kiem tra tuong doi nay khong can biet chinh xac ma mau (khoi calib tung so).
+BUTTON_BLUE_GAP = 40
+SECURITY_DETECT_TIMEOUT = 60  # giay toi da cho man Security hien ra
+SECURITY_POLL = 2             # giay giua moi lan kiem tra mau
+HOLD_SECONDS = 8              # giu nut 8 giay
+AFTER_HOLD = 20               # doi 20 giay sau khi giu, roi moi nhap mat khau
 
 # --- Man "Create Account" / tao mat khau ---------------------------------
 # Man nay tu focus san vao o mat khau -> go thang, khong can bam truoc.
@@ -357,10 +363,31 @@ def one_round(inst: Instance, log: Log) -> str:
     STORE.update(acc.username, gender=gender, status="username_set")
     lap(f"xong man dang ky ({acc.username})")
 
-    # 6b. Man "Security": nhan giu nut de xac nhan la nguoi that.
-    pause(SECURITY_WAIT, log, "cho man Security hien ra")
-    log(f"nhan giu nut Security {HOLD_SECONDS}s tai {HOLD_BTN}")
-    inst.hold(*HOLD_BTN, seconds=HOLD_SECONDS)
+    # 6b. Man "Security": detect NUT XANH bang mau diem anh roi moi nhan giu.
+    #     Roblox khong co widget tree -> khong dung uiautomator duoc. Doc mau
+    #     pixel tai HOLD_BTN, doi toi khi no thanh xanh navy (nut hien ra) roi
+    #     giu -> khong nhan vao khoang khong. Chi dung PIL, khong can cv2.
+    x, y = HOLD_BTN
+    deadline = time.monotonic() + SECURITY_DETECT_TIMEOUT * SLOW
+    detected = False
+    while time.monotonic() < deadline and not STOP.is_set():
+        _gate(log)
+        try:
+            r, g, b = inst.pixel(x, y)
+        except Exception:
+            r = g = b = -999
+        # nut xanh navy: Blue troi hon han Red va Green
+        if b - r >= BUTTON_BLUE_GAP and b - g >= BUTTON_BLUE_GAP and b >= 70:
+            detected = True
+            log(f"detect nut Security (pixel xanh {(r, g, b)} tai {(x, y)})")
+            break
+        pause(SECURITY_POLL)
+    if not detected:
+        log(f"khong detect duoc nut Security sau {SECURITY_DETECT_TIMEOUT}s "
+            f"-> giu mu tai {(x, y)}")
+
+    log(f"nhan giu {HOLD_SECONDS}s tai {(x, y)}")
+    inst.hold(x, y, seconds=HOLD_SECONDS)
     pause(AFTER_HOLD, log, "cho sau khi giu nut Security, truoc khi nhap mat khau")
     lap("xong man Security")
 

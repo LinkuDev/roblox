@@ -491,6 +491,18 @@ class Instance:
 
     # ---------- nhin ----------
 
+    def screenshot_pil(self):
+        """Anh PIL (RGB) -- KHONG can cv2/numpy, chi PIL (adbutils da co san).
+
+        Dung de detect nhe theo mau diem anh (vd nut xanh cua man Security).
+        Khong phai template matching -- cai do dung screenshot()/find() (can cv2).
+        """
+        return self._retry(lambda d: d.screenshot()).convert("RGB")
+
+    def pixel(self, x: int, y: int) -> tuple[int, int, int]:
+        """Mau (r, g, b) tai (x, y). Cv2-free."""
+        return self.screenshot_pil().getpixel((x, y))[:3]
+
     def screenshot(self) -> "np.ndarray":
         """Tra ve anh BGR cho OpenCV.
 
