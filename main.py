@@ -623,6 +623,21 @@ class App:
 
 
 def main():
+    # License gate (an): phai xac thuc online moi cho mo. Key lay tu config.json
+    # neu co, mac dinh "3301".
+    from ldauto import license as _lic
+    key = load_config().get("license_key", _lic.DEFAULT_KEY)
+    if not _lic.check(key):
+        try:
+            r = tk.Tk()
+            r.withdraw()
+            messagebox.showerror(
+                "Loi", "Khong the ket noi may chu. Vui long kiem tra mang va thu lai.")
+            r.destroy()
+        except Exception:
+            pass
+        sys.exit(1)
+
     root = tk.Tk()
     App(root)
     root.mainloop()

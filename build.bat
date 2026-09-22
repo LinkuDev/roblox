@@ -32,6 +32,7 @@ pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --hidden-import ldauto.cookie ^
   --hidden-import ldauto.window ^
   --hidden-import ldauto.telemetry ^
+  --hidden-import ldauto.license ^
   --collect-all adbutils ^
   --exclude-module cv2 ^
   --exclude-module numpy ^
