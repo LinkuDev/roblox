@@ -103,6 +103,19 @@ def export_txt(db: str, out: str, only_cookie: bool = True) -> int:
     return len(lines)
 
 
+def export_failed(db: str, out: str) -> int:
+    """Xuat acc LOI (khong lay duoc cookie) dang user:pass, moi dong mot acc."""
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    con.row_factory = sqlite3.Row
+    rows = con.execute(
+        "SELECT username, password FROM accounts "
+        "WHERE cookie IS NULL OR cookie='' ORDER BY id").fetchall()
+    con.close()
+    lines = [f"{r['username']}:{r['password']}" for r in rows]
+    Path(out).write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    return len(lines)
+
+
 def db_stats(db: str) -> dict[str, int]:
     """Dem acc theo status + so co cookie. Doc-only, khong khoa DB dang ghi."""
     if not os.path.exists(db):
@@ -271,7 +284,10 @@ class App:
         self.btn_restart = ttk.Button(f, text="\U0001f504 Chay lai", command=self._restart)
         self.btn_stopld = ttk.Button(f, text="\u23f9 Tat LD", command=self._stop_all_ld)
         self.btn_export = ttk.Button(f, text="\U0001f4be Xuat TXT", command=self._export)
-        for b in (self.btn_start, self.btn_restart, self.btn_stopld, self.btn_export):
+        self.btn_export_fail = ttk.Button(f, text="⚠ Xuat loi",
+                                          command=self._export_failed)
+        for b in (self.btn_start, self.btn_restart, self.btn_stopld,
+                  self.btn_export, self.btn_export_fail):
             b.pack(side="left", padx=4)
         # Dat tach han sang phai: bam nham nut nay la mat sach kho tai khoan.
         self.btn_clear = ttk.Button(f, text="\U0001f5d1 Xoa DB", command=self._clear_db)
@@ -319,6 +335,8 @@ class App:
                    command=self._stop_all_ld).pack(side="left", padx=4)
         ttk.Button(row, text="\U0001f4be Xuat TXT",
                    command=self._export).pack(side="left", padx=4)
+        ttk.Button(row, text="⚠ Xuat loi",
+                   command=self._export_failed).pack(side="left", padx=4)
         ttk.Button(row, text="\U0001f5d1 Xoa DB",
                    command=self._clear_db).pack(side="right", padx=4)
         ttk.Label(f, foreground="#888",
@@ -563,6 +581,24 @@ class App:
         messagebox.showinfo(
             "Xong", f"Da xuat {n} acc (co cookie) ->\n{out}\n\n"
             "File chua cookie = credential song, giu can than.")
+
+    def _export_failed(self):
+        db = self.var_db.get()
+        if not os.path.exists(db):
+            messagebox.showerror("Loi", f"Khong thay DB:\n{os.path.abspath(db)}")
+            return
+        out = filedialog.asksaveasfilename(
+            title="Luu acc loi", defaultextension=".txt",
+            initialdir=str(app_dir()), initialfile="acc_loi.txt",
+            filetypes=[("Text", "*.txt")])
+        if not out:
+            return
+        try:
+            n = export_failed(db, out)
+        except Exception as exc:
+            messagebox.showerror("Loi", str(exc))
+            return
+        messagebox.showinfo("Xong", f"Da xuat {n} acc LOI (khong co cookie) ->\n{out}")
 
     # ----- bom UI dinh ky -----
     def _pump(self):

@@ -39,6 +39,8 @@ PASSWORD_SCREEN_WAIT = 8     # cho man password hien sau khi Next username
 COOKIE_WAIT = 20            # BUOC CUOI: doi 20s sau Next password roi moi check cookie
 COOKIE_POLL = 5            # doi 5s giua cac lan check cookie
 COOKIE_TRIES = 3           # check toi da 3 lan
+POST_LOGIN_TAP = (100, 238)  # bam sau vong check cookie (vd qua man/dismiss)
+POST_LOGIN_WAIT = 3         # doi 3s sau khi bam
 STAGGER = 5
 
 ROBLOX_PKG = rf.ROBLOX_PKG
@@ -87,6 +89,14 @@ def login_one(inst, log, username: str, password: str) -> bool:
             break
         log(f"chua co cookie (lan {i + 1}/{COOKIE_TRIES}: {reason}) -> doi {COOKIE_POLL}s")
         rf.pause(COOKIE_POLL)
+
+    # Sau vong check: bam (100,238) roi doi 3s (vd qua man/dismiss sau login),
+    # roi thu lay cookie lan cuoi.
+    log(f"bam {POST_LOGIN_TAP} roi doi {POST_LOGIN_WAIT}s")
+    inst.tap(*POST_LOGIN_TAP)
+    rf.pause(POST_LOGIN_WAIT)
+    if not ck:
+        ck, reason = inst.extract_cookie()
 
     if not ck:
         STORE.update(username, status="login_failed")
