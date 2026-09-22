@@ -162,6 +162,24 @@ class AccountStore:
                 continue  # trung ten (gan nhu khong bao gio) -> sinh lai
         raise RuntimeError(f"Khong sinh duoc username duy nhat sau {tries} lan")
 
+    def add(self, username: str, password: str, ld_index: int | None = None,
+            status: str = "new") -> None:
+        """Them mot cap user:pass CHO SAN (vd danh sach login). Da co thi cap nhat
+        mat khau + reset ld_index, khong tao trung.
+
+        Dung cho luong login: input la user:pass co truoc, khong sinh ngau nhien.
+        """
+        now = time.time()
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO accounts (username, password, ld_index, status, "
+                "created_at, updated_at) VALUES (?,?,?,?,?,?) "
+                "ON CONFLICT(username) DO UPDATE SET password=excluded.password, "
+                "ld_index=excluded.ld_index, updated_at=excluded.updated_at",
+                (username, password, ld_index, status, now, now),
+            )
+            self._db.commit()
+
     def update(self, username: str, **fields) -> None:
         """Cap nhat status / gender / note / ld_index cua mot tai khoan."""
         allowed = {"status", "gender", "note", "ld_index", "password",

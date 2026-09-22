@@ -137,11 +137,20 @@ class App:
         self._ready = False            # chan _save_config chay khi dang dung UI
         self._cfg = load_config()      # nap cau hinh da luu (nguon, duong dan...)
 
-        self._build_config()
-        self._build_sources()
-        self._build_controls()
-        self._build_status()
-        self._build_log()
+        # Notebook 2 tab: "Tao acc" (luong cu) va "Login lay cookie" (luong moi).
+        self.nb = ttk.Notebook(self.root)
+        self.nb.pack(fill="x", padx=4, pady=4)
+        self.tab_farm = ttk.Frame(self.nb)
+        self.tab_login = ttk.Frame(self.nb)
+        self.nb.add(self.tab_farm, text="Tao acc")
+        self.nb.add(self.tab_login, text="Login lay cookie")
+
+        self._build_config()      # -> tab_farm
+        self._build_sources()     # -> tab_farm
+        self._build_controls()    # -> tab_farm
+        self._build_login()       # -> tab_login
+        self._build_status()      # -> root (chung, duoi notebook)
+        self._build_log()         # -> root (chung)
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self._ready = True
@@ -156,7 +165,7 @@ class App:
 
     # ----- dung UI -----
     def _build_config(self):
-        f = ttk.LabelFrame(self.root, text="Cau hinh")
+        f = ttk.LabelFrame(self.tab_farm, text="Cau hinh")
         f.pack(fill="x", padx=8, pady=6)
 
         c = self._cfg
@@ -194,7 +203,7 @@ class App:
         Bat dau 1 dong 'roblox'. Nut + them dong, mac dinh tang dan:
         roblox2, roblox3... -- van sua tay duoc. Ten do dung de search + clone.
         """
-        f = ttk.LabelFrame(self.root,
+        f = ttk.LabelFrame(self.tab_farm,
                            text="Nguon (may goc de clone) - moi nguon clone theo So clone")
         f.pack(fill="x", padx=8, pady=4)
         self.sources_container = ttk.Frame(f)
@@ -254,7 +263,7 @@ class App:
             pass
 
     def _build_controls(self):
-        f = ttk.Frame(self.root); f.pack(fill="x", padx=8, pady=4)
+        f = ttk.Frame(self.tab_farm); f.pack(fill="x", padx=8, pady=4)
         self.btn_start = ttk.Button(f, text="▶ Bat dau", command=self._start)
         self.btn_restart = ttk.Button(f, text="\U0001f504 Chay lai", command=self._restart)
         self.btn_stopld = ttk.Button(f, text="\u23f9 Tat LD", command=self._stop_all_ld)
@@ -264,6 +273,92 @@ class App:
         # Dat tach han sang phai: bam nham nut nay la mat sach kho tai khoan.
         self.btn_clear = ttk.Button(f, text="\U0001f5d1 Xoa DB", command=self._clear_db)
         self.btn_clear.pack(side="right", padx=4)
+
+    def _build_login(self):
+        """Tab LOGIN: dan danh sach user:pass, dang nhap tung acc lay cookie.
+
+        Dung chung cau hinh ldconsole/DB/nguon/so clone o tab 'Tao acc'.
+        """
+        f = self.tab_login
+        lf = ttk.LabelFrame(f, text="Danh sach user:pass (moi dong mot tai khoan)")
+        lf.pack(fill="both", expand=True, padx=8, pady=6)
+        self.login_text = tk.Text(lf, height=8, font=("Consolas", 9))
+        self.login_text.pack(fill="both", expand=True, padx=6, pady=4)
+
+        row = ttk.Frame(f); row.pack(fill="x", padx=8, pady=4)
+        ttk.Button(row, text="\U0001f4c2 Mo file...",
+                   command=self._load_login_file).pack(side="left", padx=4)
+        self.btn_login_start = ttk.Button(row, text="▶ Bat dau login",
+                                          command=self._start_login)
+        self.btn_login_start.pack(side="left", padx=4)
+        ttk.Button(row, text="⏹ Tat LD",
+                   command=self._stop_all_ld).pack(side="left", padx=4)
+        ttk.Button(row, text="\U0001f4be Xuat TXT",
+                   command=self._export).pack(side="left", padx=4)
+        ttk.Label(f, foreground="#888",
+                  text="Dung chung ldconsole / DB / Nguon / So clone o tab 'Tao acc'. "
+                       "So clone = 0 -> chi dung may nguon.").pack(anchor="w", padx=10,
+                                                                   pady=(0, 4))
+
+    def _load_login_file(self):
+        p = filedialog.askopenfilename(
+            title="Chon file user:pass", filetypes=[("Text", "*.txt"), ("all", "*.*")])
+        if not p:
+            return
+        try:
+            data = Path(p).read_text(encoding="utf-8", errors="ignore")
+        except Exception as exc:
+            messagebox.showerror("Loi", str(exc))
+            return
+        self.login_text.delete("1.0", "end")
+        self.login_text.insert("1.0", data)
+
+    def _start_login(self):
+        if self._running():
+            return
+        accounts = []
+        for line in self.login_text.get("1.0", "end").splitlines():
+            line = line.strip()
+            if line and ":" in line:
+                u, p = line.split(":", 1)
+                if u.strip():
+                    accounts.append((u.strip(), p.strip()))
+        if not accounts:
+            messagebox.showerror("Loi", "Chua co user:pass nao (moi dong: user:pass)")
+            return
+        sources = self._source_names(dedup=True)
+        if not sources:
+            messagebox.showerror("Loi", "Chua nhap may nguon o tab 'Tao acc'")
+            return
+
+        self._login_accounts = accounts
+        self._login_sources = sources
+        rf.STOP.clear()
+        rf.RESUME.set()
+        rf.LDCONSOLE = self.var_ld.get()
+        rf.CLONES = self.var_clones.get()
+        rf.SLOW = self.var_slow.get()
+
+        self._set_config_state("disabled")
+        self.btn_start.config(state="disabled")
+        self.btn_login_start.config(state="disabled")
+        self.worker = threading.Thread(target=self._run_login, daemon=True)
+        self.worker.start()
+
+    def _run_login(self):
+        log = rf.Log("login")
+        try:
+            import roblox_login as rl
+            console = rf.LDConsole(self.var_ld.get())
+            rl.STORE = AccountStore(self.var_db.get())
+            log(f"DB: {os.path.abspath(self.var_db.get())} | "
+                f"{len(self._login_accounts)} acc can login")
+            results = rl.run_login(console, self._login_accounts, self._login_sources,
+                                   db=self.var_db.get())
+            rf.report(results)
+            log("=== xong login ===")
+        except Exception as exc:
+            log(f"LOI: {type(exc).__name__}: {exc}")
 
     def _stop_all_ld(self):
         """Tat het may ao LDPlayer (ldconsole quitall). Chay o thread rieng de
@@ -468,6 +563,7 @@ class App:
         # worker vua ket thuc
         if not self._running() and self.btn_start["state"] == "disabled":
             self.btn_start.config(state="normal")
+            self.btn_login_start.config(state="normal")
             self._set_config_state("normal")
             if self.restart_pending:
                 self.restart_pending = False

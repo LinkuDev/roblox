@@ -23,6 +23,7 @@ REM Loai apkutils2: adbutils keo vao de phan tich APK, minh khong dung.
 pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --paths examples ^
   --hidden-import roblox_flow ^
+  --hidden-import roblox_login ^
   --hidden-import ldauto.console ^
   --hidden-import ldauto.farm ^
   --hidden-import ldauto.flow ^
