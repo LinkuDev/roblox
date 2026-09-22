@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import queue
+import random
 import sys
 import time
 from pathlib import Path
@@ -109,9 +110,9 @@ def login_one(inst, log, username: str, password: str) -> bool:
 
 
 def worker(inst, log) -> None:
-    """Moi may: boot -> VPN -> rut tung acc tu QUEUE ra login toi khi het."""
-    inst.start()
-    rf.connect_vpn(inst, log)
+    """Moi acc = mot chu ky DAY DU (giong luong tao acc moi vong):
+    bat may -> xep cua so -> VPN -> mo Roblox + login -> lay cookie -> TAT may.
+    """
     n = 0
     while not rf.STOP.is_set():
         rf._gate(log)
@@ -124,11 +125,25 @@ def worker(inst, log) -> None:
         n += 1
         log(f"===== acc {n}: {username} =====")
         try:
+            inst.start()                       # bat may ao (fresh)
+            rf.place_window(inst, log)
+            rf.connect_vpn(inst, log)
             login_one(inst, log, username, password)
         except Exception as exc:
             log(f"loi khi login {username}: {type(exc).__name__}: {exc}")
             if STORE is not None:
                 STORE.update(username, status="login_error")
+        finally:
+            # Tat may ao sau moi acc -> acc sau bat lai tu dau (VPN doi IP, Roblox sach).
+            try:
+                log("tat may ao sau acc nay")
+                inst.stop()
+                inst.console.wait_stopped(inst.index, settle=0)
+            except Exception as exc:
+                log(f"tat may khong sach: {type(exc).__name__}: {exc}")
+        # Rai ngau nhien de cac may khong bat lai cung luc (nghen dia).
+        if not rf.STOP.is_set() and not QUEUE.empty():
+            rf.pause(random.uniform(0, rf.RESTART_JITTER))
     log(f"xong, da xu ly {n} acc")
 
 
@@ -161,6 +176,7 @@ def run_login(console: LDConsole, accounts: list[tuple[str, str]],
         for slot, inst in enumerate(instances):
             rf.WINDOW_SLOT[inst.index] = slot
 
+    # Tat may dang chay truoc khi bat lai -- giong luong tao acc.
     running = [i for i in instances if console.is_running(i.index)]
     if running:
         print(f"Tat {len(running)} may dang chay truoc khi bat lai...")

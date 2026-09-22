@@ -260,6 +260,7 @@ class App:
             }
             if hasattr(self, "login_source_rows"):
                 cfg["login_sources"] = self._source_names(self.login_source_rows)
+                cfg["login_clones"] = self.var_login_clones.get()
             save_config(cfg)
         except Exception:
             pass
@@ -285,17 +286,22 @@ class App:
 
         # Nguon RIENG cho login: dung THANG cac may LD nay, KHONG clone/spawn
         # (tranh cua so chong nhau). Moi may login lan luot tung acc trong list.
-        sf = ttk.LabelFrame(f, text="May LD dung de login (dung thang, khong clone)")
+        sf = ttk.LabelFrame(f, text="Nguon (may goc de clone) - moi nguon clone theo So clone")
         sf.pack(fill="x", padx=8, pady=(6, 2))
         self.login_sources_container = ttk.Frame(sf)
         self.login_sources_container.pack(fill="x", padx=6, pady=3)
         self.login_source_rows: list[tuple] = []
         for name in (self._cfg.get("login_sources") or ["roblox"]):
             self._add_source_row(self.login_source_rows, self.login_sources_container, name)
-        ttk.Button(sf, text="+ Them may",
+        crow = ttk.Frame(sf); crow.pack(fill="x", padx=6, pady=(0, 3))
+        ttk.Button(crow, text="+ Them may",
                    command=lambda: self._add_source_row(
-                       self.login_source_rows, self.login_sources_container)).pack(
-            anchor="w", padx=6, pady=(0, 5))
+                       self.login_source_rows, self.login_sources_container)).pack(side="left")
+        ttk.Label(crow, text="So clone:").pack(side="left", padx=(12, 0))
+        self.var_login_clones = tk.IntVar(value=self._cfg.get("login_clones", rf.CLONES))
+        self.var_login_clones.trace_add("write", lambda *a: self._save_config())
+        ttk.Spinbox(crow, from_=0, to=64, width=5,
+                    textvariable=self.var_login_clones).pack(side="left", padx=4)
         self.login_sources_widget = sf
 
         lf = ttk.LabelFrame(f, text="Danh sach user:pass (moi dong mot tai khoan)")
@@ -317,7 +323,7 @@ class App:
                    command=self._clear_db).pack(side="right", padx=4)
         ttk.Label(f, foreground="#888",
                   text="Dung chung ldconsole / DB / He so cho o tab 'Tao acc'. "
-                       "Login KHONG clone -- dung thang may LD liet ke tren.").pack(
+                       "Moi acc = tat/bat lai may, mo VPN, sign in, lay cookie.").pack(
             anchor="w", padx=10, pady=(0, 4))
 
     def _load_login_file(self):
@@ -356,7 +362,7 @@ class App:
         rf.STOP.clear()
         rf.RESUME.set()
         rf.LDCONSOLE = self.var_ld.get()
-        rf.CLONES = 0            # login KHONG clone -- dung thang may LD liet ke
+        rf.CLONES = self.var_login_clones.get()   # login clone giong luong tao acc
         rf.SLOW = self.var_slow.get()
 
         self._set_config_state("disabled")

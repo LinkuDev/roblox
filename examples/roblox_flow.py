@@ -133,6 +133,31 @@ DONE_BTN = (200, 370)
 SLOW = 1.0
 
 
+def place_window(inst, log: "Log | None" = None) -> None:
+    """Keo cua so may ao ve o cua no theo WINDOW_SLOT. Dung chung reg + login.
+
+    Dung handle tu list2 (khong do theo tieu de vi 'bot1' nam trong 'bot10').
+    Phai goi SAU khi may ao bat xong -- luc tat handle bang 0.
+    """
+    slot = WINDOW_SLOT.get(inst.index)
+    if slot is None:
+        return
+    info = inst.console.find(inst.index)
+    hwnd = info.top_window_handle if info else 0
+    pos = window.slot_pos(hwnd, slot, cols=WINDOW_COLS,
+                          origin=WINDOW_ORIGIN, gap=WINDOW_GAP)
+    if pos is None and info and info.width:
+        # Do khong duoc thi suy tu do phan giai may ao + CHROME (vien/tieu de/cot).
+        w, h = info.width + CHROME[0], (info.height or 500) + CHROME[1]
+        pos = (WINDOW_ORIGIN[0] + (slot % WINDOW_COLS) * (w + WINDOW_GAP[0]),
+               WINDOW_ORIGIN[1] + (slot // WINDOW_COLS) * (h + WINDOW_GAP[1]))
+    if pos and window.place_hwnd(hwnd, *pos):
+        if log:
+            log(f"cua so -> o {slot} tai {pos} (hwnd={hwnd})")
+    elif log:
+        log(f"khong keo duoc cua so, hwnd={hwnd} -- bo qua")
+
+
 def pause(seconds: float, log: Log | None = None, why: str = "") -> None:
     """time.sleep co nhan he so SLOW, ton trong pause/stop."""
     _gate(log)              # dang pause thi dung o day truoc khi cho tiep
@@ -269,28 +294,8 @@ def one_round(inst: Instance, log: Log) -> str:
     inst.start()
     lap(f"san sang -> {inst.serial}")
 
-    # 1b. keo cua so ve o cua no. Dung handle tu list2 chu khong do theo tieu de:
-    #     tieu de DUNG la ten may ao, nhung khop chuoi con mo ho ('bot1' nam
-    #     trong 'bot10'). list2 dua thang handle nen khong phai doan.
-    #     Phai doc SAU khi may ao bat xong -- luc tat handle bang 0.
-    slot = WINDOW_SLOT.get(inst.index)
-    if slot is not None:
-        info = inst.console.find(inst.index)
-        hwnd = info.top_window_handle if info else 0
-        pos = window.slot_pos(hwnd, slot, cols=WINDOW_COLS,
-                              origin=WINDOW_ORIGIN, gap=WINDOW_GAP)
-        if pos is None and info and info.width:
-            # Do khong duoc thi suy tu do phan giai may ao, cong CHROME cho phan
-            # khung: vien cua so, thanh tieu de va cot cong cu ben phai cua
-            # LDPlayer deu nam ngoai vung 400x500 do.
-            w, h = info.width + CHROME[0], (info.height or 500) + CHROME[1]
-            pos = (WINDOW_ORIGIN[0] + (slot % WINDOW_COLS) * (w + WINDOW_GAP[0]),
-                   WINDOW_ORIGIN[1] + (slot // WINDOW_COLS) * (h + WINDOW_GAP[1]))
-            log(f"khong do duoc cua so -> suy tu {info.width}x{info.height} + chrome")
-        if pos and window.place_hwnd(hwnd, *pos):
-            log(f"cua so -> o {slot} tai {pos} (hwnd={hwnd})")
-        else:
-            log(f"khong keo duoc cua so, hwnd={hwnd} -- bo qua")
+    # 1b. keo cua so ve o cua no (tach ra place_window de login dung chung).
+    place_window(inst, log)
 
     # 2. VPN truoc, Roblox sau -- mo Roblox truoc thi no da bat dau noi mang
     #    bang IP that roi moi bi doi duong, de sinh loi ket noi giua chung.
