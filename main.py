@@ -310,8 +310,19 @@ class App:
         """
         f = self.tab_login
 
-        # Nguon RIENG cho login: dung THANG cac may LD nay, KHONG clone/spawn
-        # (tranh cua so chong nhau). Moi may login lan luot tung acc trong list.
+        # Cau hinh dung CHUNG bien voi tab 'Tao acc' (sua ben nao cung dong bo).
+        cf = ttk.LabelFrame(f, text="Cau hinh")
+        cf.pack(fill="x", padx=8, pady=(6, 2))
+        for label, var, cmd in (("ldconsole:", self.var_ld, self._pick_ld),
+                                 ("LDPlayer.exe:", self.var_ldplayer, self._pick_ldplayer),
+                                 ("DB:", self.var_db, self._pick_db)):
+            row = ttk.Frame(cf); row.pack(fill="x", padx=6, pady=3)
+            ttk.Label(row, text=label, width=11).pack(side="left")
+            ttk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+            ttk.Button(row, text="...", width=3, command=cmd).pack(side="left", padx=3)
+        self.login_config_widgets = cf
+
+        # Nguon cho login: clone giong luong tao acc, xep cua so khoi chong nhau.
         sf = ttk.LabelFrame(f, text="Nguon (may goc de clone) - moi nguon clone theo So clone")
         sf.pack(fill="x", padx=8, pady=(6, 2))
         self.login_sources_container = ttk.Frame(sf)
@@ -350,7 +361,7 @@ class App:
         ttk.Button(row, text="\U0001f5d1 Xoa DB",
                    command=self._clear_db).pack(side="right", padx=4)
         ttk.Label(f, foreground="#888",
-                  text="Dung chung ldconsole / DB / He so cho o tab 'Tao acc'. "
+                  text="He so cho lay o tab 'Tao acc'. "
                        "Moi acc = tat/bat lai may, mo VPN, sign in, lay cookie.").pack(
             anchor="w", padx=10, pady=(0, 4))
 
@@ -668,8 +679,9 @@ class App:
                 walk(c)
         walk(self.config_widgets)
         walk(self.sources_widget)
-        if hasattr(self, "login_sources_widget"):
-            walk(self.login_sources_widget)
+        for attr in ("login_config_widgets", "login_sources_widget"):
+            if hasattr(self, attr):
+                walk(getattr(self, attr))
 
     def _on_close(self):
         self._save_config()
