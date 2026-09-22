@@ -182,18 +182,27 @@ class App:
         f.pack(fill="x", padx=8, pady=6)
 
         c = self._cfg
-        self.var_ld = tk.StringVar(value=c.get("ldconsole", rf.LDCONSOLE))
+        _ld_default = c.get("ldconsole", rf.LDCONSOLE)
+        self.var_ld = tk.StringVar(value=_ld_default)
+        self.var_ldplayer = tk.StringVar(
+            value=c.get("ldplayer", str(Path(_ld_default).with_name("dnplayer.exe"))))
         self.var_db = tk.StringVar(value=c.get("db", str(app_dir() / "accounts.db")))
         self.var_rounds = tk.IntVar(value=c.get("rounds", 0))
         self.var_clones = tk.IntVar(value=c.get("clones", rf.CLONES))
         self.var_slow = tk.DoubleVar(value=c.get("slow", 1.0))
-        for v in (self.var_ld, self.var_db, self.var_rounds, self.var_clones, self.var_slow):
+        for v in (self.var_ld, self.var_ldplayer, self.var_db, self.var_rounds,
+                  self.var_clones, self.var_slow):
             v.trace_add("write", lambda *a: self._save_config())
 
         row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
         ttk.Label(row, text="ldconsole:", width=10).pack(side="left")
         ttk.Entry(row, textvariable=self.var_ld).pack(side="left", fill="x", expand=True)
         ttk.Button(row, text="...", width=3, command=self._pick_ld).pack(side="left", padx=3)
+
+        row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
+        ttk.Label(row, text="LDPlayer.exe:", width=10).pack(side="left")
+        ttk.Entry(row, textvariable=self.var_ldplayer).pack(side="left", fill="x", expand=True)
+        ttk.Button(row, text="...", width=3, command=self._pick_ldplayer).pack(side="left", padx=3)
 
         row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
         ttk.Label(row, text="DB:", width=10).pack(side="left")
@@ -265,6 +274,7 @@ class App:
         try:
             cfg = {
                 "ldconsole": self.var_ld.get(),
+                "ldplayer": self.var_ldplayer.get(),
                 "db": self.var_db.get(),
                 "rounds": self.var_rounds.get(),
                 "clones": self.var_clones.get(),
@@ -447,6 +457,12 @@ class App:
                                        filetypes=[("exe", "*.exe"), ("all", "*.*")])
         if p:
             self.var_ld.set(p)
+
+    def _pick_ldplayer(self):
+        p = filedialog.askopenfilename(title="Chon LDPlayer.exe / dnplayer.exe",
+                                       filetypes=[("exe", "*.exe"), ("all", "*.*")])
+        if p:
+            self.var_ldplayer.set(p)
 
     def _pick_db(self):
         p = filedialog.askopenfilename(title="Chon accounts.db",
