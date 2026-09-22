@@ -164,6 +164,18 @@ class Instance:
     def tap(self, x: int, y: int) -> None:
         self._retry(lambda d: d.click(x, y))
 
+    def tap_spam(self, x: int, y: int, count: int = 10, jitter: int = 5,
+                 interval: float = 0.1) -> None:
+        """Bam lien tuc `count` lan quanh (x, y) trong ban kinh `jitter` px.
+
+        Rai ngau nhien +-jitter cho moi cu -> trung nut du toa do lech chut, va
+        giong nguoi bam nhieu lan hon la bam dung mot diem.
+        """
+        import random as _r
+        for _ in range(count):
+            self.tap(x + _r.randint(-jitter, jitter), y + _r.randint(-jitter, jitter))
+            time.sleep(interval)
+
     def swipe(self, x1: int, y1: int, x2: int, y2: int, duration: float = 0.3) -> None:
         self._retry(lambda d: d.swipe(x1, y1, x2, y2, duration))
 

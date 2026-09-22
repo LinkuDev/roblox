@@ -40,6 +40,8 @@ COOKIE_WAIT = 20            # BUOC CUOI: doi 20s sau Next password roi moi check
 COOKIE_POLL = 5            # doi 5s giua cac lan check cookie
 COOKIE_TRIES = 3           # check toi da 3 lan
 POST_LOGIN_TAP = (100, 238)  # bam sau vong check cookie (vd qua man/dismiss)
+POST_LOGIN_TAPS = 10        # spam bao nhieu cu bam
+POST_LOGIN_JITTER = 5       # rai +-5px quanh diem
 POST_LOGIN_WAIT = 3         # doi 3s sau khi bam
 STAGGER = 5
 
@@ -92,8 +94,9 @@ def login_one(inst, log, username: str, password: str) -> bool:
 
     # Sau vong check: bam (100,238) roi doi 3s (vd qua man/dismiss sau login),
     # roi thu lay cookie lan cuoi.
-    log(f"bam {POST_LOGIN_TAP} roi doi {POST_LOGIN_WAIT}s")
-    inst.tap(*POST_LOGIN_TAP)
+    log(f"spam bam quanh {POST_LOGIN_TAP} (+-{POST_LOGIN_JITTER}px x{POST_LOGIN_TAPS}) "
+        f"roi doi {POST_LOGIN_WAIT}s")
+    inst.tap_spam(*POST_LOGIN_TAP, count=POST_LOGIN_TAPS, jitter=POST_LOGIN_JITTER)
     rf.pause(POST_LOGIN_WAIT)
     if not ck:
         ck, reason = inst.extract_cookie()
