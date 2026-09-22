@@ -179,9 +179,26 @@ def run_login(console: LDConsole, accounts: list[tuple[str, str]],
     global STORE, QUEUE
     STORE = AccountStore(db)
     QUEUE = queue.Queue()
-    for a in accounts:
-        QUEUE.put(a)
-    print(f"Nap {QUEUE.qsize()} tai khoan can login")
+    # Bo qua acc DA TUNG CHAY (co trong DB) -- trung username = da chay roi thi
+    # khong chay lai; tat/mo lai app khong chay tu dau. Chi cho chay lai acc
+    # con dang do (status 'login_new', bi ngat giua chung). Cung bo trung trong
+    # chinh danh sach input.
+    skipped_done = 0
+    seen: set[str] = set()
+    for u, p in accounts:
+        if u in seen:
+            continue
+        seen.add(u)
+        row = STORE.get(u)
+        if row is not None and (row["status"] or "") != "login_new":
+            skipped_done += 1
+            continue
+        QUEUE.put((u, p))
+    print(f"Nap {QUEUE.qsize()} tai khoan can login "
+          f"(bo qua {skipped_done} acc da tung chay)")
+    if QUEUE.empty():
+        print("Tat ca acc da tung chay -> khong con gi de login.")
+        return []
 
     console.global_setting(fps=30, audio=False, fast_play=True)
     instances = rf.build_instances(console, sources)
