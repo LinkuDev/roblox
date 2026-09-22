@@ -198,11 +198,7 @@ class App:
         self.config_widgets = f
 
     def _build_sources(self):
-        """Danh sach may nguon de clone. Moi nguon clone theo 'So clone'.
-
-        Bat dau 1 dong 'roblox'. Nut + them dong, mac dinh tang dan:
-        roblox2, roblox3... -- van sua tay duoc. Ten do dung de search + clone.
-        """
+        """Danh sach may nguon de clone (tab Tao acc). + them dong, - xoa."""
         f = ttk.LabelFrame(self.tab_farm,
                            text="Nguon (may goc de clone) - moi nguon clone theo So clone")
         f.pack(fill="x", padx=8, pady=4)
@@ -210,36 +206,39 @@ class App:
         self.sources_container.pack(fill="x", padx=6, pady=3)
         self.source_rows: list[tuple] = []
         for name in (self._cfg.get("sources") or ["roblox"]):
-            self._add_source_row(name)
+            self._add_source_row(self.source_rows, self.sources_container, name)
         ttk.Button(f, text="+ Them nguon",
-                   command=lambda: self._add_source_row()).pack(anchor="w", padx=6, pady=(0, 5))
+                   command=lambda: self._add_source_row(
+                       self.source_rows, self.sources_container)).pack(
+            anchor="w", padx=6, pady=(0, 5))
         self.sources_widget = f
 
-    def _add_source_row(self, default: str | None = None):
-        n = len(self.source_rows)
+    def _add_source_row(self, rows, container, default: str | None = None):
+        n = len(rows)
         if default is None:
             default = "roblox" if n == 0 else f"roblox{n + 1}"
         var = tk.StringVar(value=default)
         var.trace_add("write", lambda *a: self._save_config())
-        row = ttk.Frame(self.sources_container)
+        row = ttk.Frame(container)
         row.pack(fill="x", pady=1)
         ttk.Label(row, text=f"#{n + 1}", width=4).pack(side="left")
         ttk.Entry(row, textvariable=var, width=28).pack(side="left")
         ttk.Button(row, text="\u2013", width=3,
-                   command=lambda: self._remove_source_row(row, var)).pack(side="left", padx=3)
-        self.source_rows.append((row, var))
+                   command=lambda: self._remove_source_row(rows, row, var)).pack(
+            side="left", padx=3)
+        rows.append((row, var))
         self._save_config()
 
-    def _remove_source_row(self, row, var):
-        if len(self.source_rows) <= 1:      # giu it nhat 1 nguon
+    def _remove_source_row(self, rows, row, var):
+        if len(rows) <= 1:      # giu it nhat 1 nguon
             return
         row.destroy()
-        self.source_rows = [(r, v) for (r, v) in self.source_rows if v is not var]
+        rows[:] = [(r, v) for (r, v) in rows if v is not var]
         self._save_config()
 
-    def _source_names(self, dedup: bool = False) -> list[str]:
+    def _source_names(self, rows, dedup: bool = False) -> list[str]:
         names, seen = [], set()
-        for _, v in self.source_rows:
+        for _, v in rows:
             n = v.get().strip()
             if not n or (dedup and n in seen):
                 continue
@@ -251,14 +250,17 @@ class App:
         if not self._ready:
             return
         try:
-            save_config({
+            cfg = {
                 "ldconsole": self.var_ld.get(),
                 "db": self.var_db.get(),
                 "rounds": self.var_rounds.get(),
                 "clones": self.var_clones.get(),
                 "slow": self.var_slow.get(),
-                "sources": self._source_names(),
-            })
+                "sources": self._source_names(self.source_rows),
+            }
+            if hasattr(self, "login_source_rows"):
+                cfg["login_sources"] = self._source_names(self.login_source_rows)
+            save_config(cfg)
         except Exception:
             pass
 
@@ -280,9 +282,25 @@ class App:
         Dung chung cau hinh ldconsole/DB/nguon/so clone o tab 'Tao acc'.
         """
         f = self.tab_login
+
+        # Nguon RIENG cho login: dung THANG cac may LD nay, KHONG clone/spawn
+        # (tranh cua so chong nhau). Moi may login lan luot tung acc trong list.
+        sf = ttk.LabelFrame(f, text="May LD dung de login (dung thang, khong clone)")
+        sf.pack(fill="x", padx=8, pady=(6, 2))
+        self.login_sources_container = ttk.Frame(sf)
+        self.login_sources_container.pack(fill="x", padx=6, pady=3)
+        self.login_source_rows: list[tuple] = []
+        for name in (self._cfg.get("login_sources") or ["roblox"]):
+            self._add_source_row(self.login_source_rows, self.login_sources_container, name)
+        ttk.Button(sf, text="+ Them may",
+                   command=lambda: self._add_source_row(
+                       self.login_source_rows, self.login_sources_container)).pack(
+            anchor="w", padx=6, pady=(0, 5))
+        self.login_sources_widget = sf
+
         lf = ttk.LabelFrame(f, text="Danh sach user:pass (moi dong mot tai khoan)")
         lf.pack(fill="both", expand=True, padx=8, pady=6)
-        self.login_text = tk.Text(lf, height=8, font=("Consolas", 9))
+        self.login_text = tk.Text(lf, height=7, font=("Consolas", 9))
         self.login_text.pack(fill="both", expand=True, padx=6, pady=4)
 
         row = ttk.Frame(f); row.pack(fill="x", padx=8, pady=4)
@@ -295,10 +313,12 @@ class App:
                    command=self._stop_all_ld).pack(side="left", padx=4)
         ttk.Button(row, text="\U0001f4be Xuat TXT",
                    command=self._export).pack(side="left", padx=4)
+        ttk.Button(row, text="\U0001f5d1 Xoa DB",
+                   command=self._clear_db).pack(side="right", padx=4)
         ttk.Label(f, foreground="#888",
-                  text="Dung chung ldconsole / DB / Nguon / So clone o tab 'Tao acc'. "
-                       "So clone = 0 -> chi dung may nguon.").pack(anchor="w", padx=10,
-                                                                   pady=(0, 4))
+                  text="Dung chung ldconsole / DB / He so cho o tab 'Tao acc'. "
+                       "Login KHONG clone -- dung thang may LD liet ke tren.").pack(
+            anchor="w", padx=10, pady=(0, 4))
 
     def _load_login_file(self):
         p = filedialog.askopenfilename(
@@ -326,9 +346,9 @@ class App:
         if not accounts:
             messagebox.showerror("Loi", "Chua co user:pass nao (moi dong: user:pass)")
             return
-        sources = self._source_names(dedup=True)
+        sources = self._source_names(self.login_source_rows, dedup=True)
         if not sources:
-            messagebox.showerror("Loi", "Chua nhap may nguon o tab 'Tao acc'")
+            messagebox.showerror("Loi", "Chua nhap may LD nao o tab Login")
             return
 
         self._login_accounts = accounts
@@ -336,7 +356,7 @@ class App:
         rf.STOP.clear()
         rf.RESUME.set()
         rf.LDCONSOLE = self.var_ld.get()
-        rf.CLONES = self.var_clones.get()
+        rf.CLONES = 0            # login KHONG clone -- dung thang may LD liet ke
         rf.SLOW = self.var_slow.get()
 
         self._set_config_state("disabled")
@@ -417,7 +437,7 @@ class App:
     def _start(self):
         if self._running():
             return
-        sources = self._source_names(dedup=True)
+        sources = self._source_names(self.source_rows, dedup=True)
         if not sources:
             messagebox.showerror("Loi", "Chua nhap may nguon nao")
             return
@@ -590,6 +610,8 @@ class App:
                 walk(c)
         walk(self.config_widgets)
         walk(self.sources_widget)
+        if hasattr(self, "login_sources_widget"):
+            walk(self.login_sources_widget)
 
     def _on_close(self):
         self._save_config()
