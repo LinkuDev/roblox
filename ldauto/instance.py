@@ -56,7 +56,7 @@ class Instance:
     # Loi ADB thuoc nhom "ket noi rot", khac han loi that su cua lenh. Bat theo
     # chuoi vi adbutils nem chung mot class AdbError cho moi thu.
     _TRANSIENT = (
-        "device not found",
+        "not found",             # "device '127.0.0.1:5563' not found" -- serial chen giua
         "offline",
         "unknown data",          # adb server dong ket noi giua chung
         "connection reset",
