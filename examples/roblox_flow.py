@@ -53,6 +53,12 @@ VPN_ALL_TAB = (300, 115)      # fallback: tab "ALL LOCATIONS" (anh 6)
 VPN_COUNTRY_ROWS = [          # fallback: cac hang nuoc
     (120, 224), (120, 282), (120, 339), (120, 396),
 ]
+# Hop thoai "Changing Location?" hien SAU khi chon nuoc, nhung CHI khi VPN dang
+# ket noi san -- doi location luc dang tat thi khong co hop thoai nao. Vi vay
+# phai nhan dien hop thoai truoc khi bam, khong bam mu theo toa do.
+VPN_DIALOG_TITLE = "Changing Location"
+VPN_DIALOG_TIMEOUT = 12       # giay toi da cho hop thoai hien ra
+VPN_CONTINUE_BTN = (279, 298) # fallback: nut Continue trong hop thoai (400x500)
 # Ten nuoc de nhan dien hang trong danh sach qua uiautomator (khop chinh xac).
 VPN_COUNTRIES = {
     "United States", "United Kingdom", "Japan", "Australia", "Germany", "France",
@@ -286,6 +292,30 @@ def connect_vpn(inst: Instance, log: Log) -> None:
         x, y = random.choice(VPN_COUNTRY_ROWS)
         log(f"khong doc duoc danh sach nuoc (widget) -> bam toa do random ({x}, {y})")
         inst.tap(x, y)
+
+    # Xac nhan hop thoai "Changing Location?" neu no hien ra. Khong bam mu theo
+    # toa do nhu cac buoc tren: hop thoai nay co the KHONG xuat hien (VPN dang
+    # tat), va luc do mot cu bam vao giua man hinh se trung nut khac.
+    deadline = time.monotonic() + VPN_DIALOG_TIMEOUT
+    while time.monotonic() < deadline:
+        try:
+            nodes = inst.ui_nodes()
+        except Exception:
+            nodes = []
+        if not any(VPN_DIALOG_TITLE in n["text"] for n in nodes):
+            time.sleep(2)
+            continue
+        btn = inst.find_node(text="Continue", nodes=nodes)
+        if btn:
+            log(f"bam Continue o hop thoai {VPN_DIALOG_TITLE!r} tai {btn['center']}")
+            inst.tap(*btn["center"])
+        else:
+            log(f"thay hop thoai nhung khong doc duoc nut -> bam toa do {VPN_CONTINUE_BTN}")
+            inst.tap(*VPN_CONTINUE_BTN)
+        pause(VPN_STEP_WAIT, log, "cho VPN noi lai sau khi doi location")
+        break
+    else:
+        log(f"khong thay hop thoai {VPN_DIALOG_TITLE!r} -> bo qua")
 
     try:
         inst.wait_vpn(timeout=120)
