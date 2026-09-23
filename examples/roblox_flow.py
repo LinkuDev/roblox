@@ -142,6 +142,9 @@ POST_SIGNUP_TAPS = 10        # so cu bam
 POST_SIGNUP_JITTER = 5       # +-5px
 
 # --- Man "Security" (nhan giu de xac nhan la nguoi that) -----------------
+# TAM THOI TAT. Dat lai True de bat buoc nay. Dung co thay vi comment code:
+# code van duoc trinh bien dich doc nen khong muc dan, va bat lai chi sua 1 tu.
+DO_SECURITY = False
 # Hien ra SAU khi bam Continue o man dang ky, TRUOC man tao mat khau.
 # Detect man Security bang MAU DIEM ANH (Roblox khong co widget tree, uiautomator
 # thay rong). Nut "Press and hold" la thanh xanh navy to -> doi toi khi pixel tai
@@ -432,36 +435,40 @@ def one_round(inst: Instance, log: Log) -> str | None:
     STORE.update(acc.username, gender=gender, status="username_set")
     lap(f"xong man dang ky ({acc.username})")
 
-    # 6b. Man "Security": detect NUT XANH bang mau diem anh roi moi nhan giu.
-    #     Roblox khong co widget tree -> khong dung uiautomator duoc. Doc mau
-    #     pixel tai HOLD_BTN, doi toi khi no thanh xanh navy (nut hien ra) roi
-    #     giu -> khong nhan vao khoang khong. Chi dung PIL, khong can cv2.
-    x, y = HOLD_BTN
-    deadline = time.monotonic() + SECURITY_DETECT_TIMEOUT * SLOW
-    detected = False
-    while time.monotonic() < deadline and not STOP.is_set():
-        _gate(log)
-        try:
-            r, g, b = inst.pixel(x, y)
-        except Exception:
-            r = g = b = -999
-        # nut xanh navy: Blue troi hon han Red va Green
-        if b - r >= BUTTON_BLUE_GAP and b - g >= BUTTON_BLUE_GAP and b >= 70:
-            detected = True
-            log(f"detect nut Security (pixel xanh {(r, g, b)} tai {(x, y)})")
-            break
-        pause(SECURITY_POLL)
-    if not detected:
-        log(f"khong detect duoc nut Security sau {SECURITY_DETECT_TIMEOUT}s "
-            f"-> giu mu tai {(x, y)}")
+    # 6b. Man "Security" -- tam thoi tat bang DO_SECURITY.
+    if not DO_SECURITY:
+        log("bo qua man Security (DO_SECURITY=False)")
+    else:
+        # 6b. Man "Security": detect NUT XANH bang mau diem anh roi moi nhan giu.
+        #     Roblox khong co widget tree -> khong dung uiautomator duoc. Doc mau
+        #     pixel tai HOLD_BTN, doi toi khi no thanh xanh navy (nut hien ra) roi
+        #     giu -> khong nhan vao khoang khong. Chi dung PIL, khong can cv2.
+        x, y = HOLD_BTN
+        deadline = time.monotonic() + SECURITY_DETECT_TIMEOUT * SLOW
+        detected = False
+        while time.monotonic() < deadline and not STOP.is_set():
+            _gate(log)
+            try:
+                r, g, b = inst.pixel(x, y)
+            except Exception:
+                r = g = b = -999
+            # nut xanh navy: Blue troi hon han Red va Green
+            if b - r >= BUTTON_BLUE_GAP and b - g >= BUTTON_BLUE_GAP and b >= 70:
+                detected = True
+                log(f"detect nut Security (pixel xanh {(r, g, b)} tai {(x, y)})")
+                break
+            pause(SECURITY_POLL)
+        if not detected:
+            log(f"khong detect duoc nut Security sau {SECURITY_DETECT_TIMEOUT}s "
+                f"-> giu mu tai {(x, y)}")
 
-    log(f"nhan giu lan 1 {HOLD_SECONDS}s tai {(x, y)}")
-    inst.hold(x, y, seconds=HOLD_SECONDS)
-    pause(HOLD_REPEAT_WAIT, log, "cho giua 2 lan giu")
-    log(f"nhan giu lan 2 {HOLD_SECONDS}s tai {(x, y)}")
-    inst.hold(x, y, seconds=HOLD_SECONDS)
-    pause(AFTER_HOLD, log, "cho sau lan giu cuoi, truoc khi nhap mat khau")
-    lap("xong man Security")
+        log(f"nhan giu lan 1 {HOLD_SECONDS}s tai {(x, y)}")
+        inst.hold(x, y, seconds=HOLD_SECONDS)
+        pause(HOLD_REPEAT_WAIT, log, "cho giua 2 lan giu")
+        log(f"nhan giu lan 2 {HOLD_SECONDS}s tai {(x, y)}")
+        inst.hold(x, y, seconds=HOLD_SECONDS)
+        pause(AFTER_HOLD, log, "cho sau lan giu cuoi, truoc khi nhap mat khau")
+        lap("xong man Security")
 
     # 7. Man "Create Account": nhap mat khau roi bam Done.
     #    Mat khau sinh ra da thoa ca ba luat man hinh nay kiem: >= 8 ky tu,
