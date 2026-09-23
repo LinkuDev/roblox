@@ -106,6 +106,11 @@ USERNAME_FIELD = (201, 266)
 GENDER_FEMALE = (113, 290)   # icon ben trai
 GENDER_MALE = (288, 290)     # icon ben phai
 SIGNUP_CONTINUE = (200, 381)
+# Sau khi bam Continue (gender): doi them roi SPAM bam (giong login POST_LOGIN_TAP).
+POST_SIGNUP_WAIT = 8         # doi them sau continue truoc khi spam bam
+POST_SIGNUP_TAP = (73, 177)  # spam bam quanh diem nay
+POST_SIGNUP_TAPS = 10        # so cu bam
+POST_SIGNUP_JITTER = 5       # +-5px
 
 # --- Man "Security" (nhan giu de xac nhan la nguoi that) -----------------
 # Hien ra SAU khi bam Continue o man dang ky, TRUOC man tao mat khau.
@@ -365,6 +370,12 @@ def one_round(inst: Instance, log: Log) -> str:
     log(f"bam Continue tai {SIGNUP_CONTINUE}")
     inst.tap(*SIGNUP_CONTINUE)
     pause(STEP_PAUSE)
+
+    # Sau continue (gender): doi them roi spam bam (73,345) giong login POST_LOGIN_TAP.
+    pause(POST_SIGNUP_WAIT, log, "cho sau continue")
+    log(f"spam bam quanh {POST_SIGNUP_TAP} (+-{POST_SIGNUP_JITTER}px x{POST_SIGNUP_TAPS})")
+    inst.tap_spam(*POST_SIGNUP_TAP, count=POST_SIGNUP_TAPS, jitter=POST_SIGNUP_JITTER)
+    pause(POST_SIGNUP_WAIT, log, "sau khi spam bam")
 
     STORE.update(acc.username, gender=gender, status="username_set")
     lap(f"xong man dang ky ({acc.username})")
