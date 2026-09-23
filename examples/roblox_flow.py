@@ -43,6 +43,25 @@ VPN_CONNECT_HINTS = [
 ]
 VPN_STATUS_ID = "vpn_connection_status_text"   # 'Protected | 00:04:20' khi dang bat
 
+# Doi location moi lan ket noi -> moi acc mot IP.
+# ExpressVPN la app that -> UU TIEN uiautomator (tap theo text). Toa do pixel chi
+# la FALLBACK khi khong doc duoc widget. Chon random 1 nuoc trong danh sach hien.
+VPN_OPEN_WAIT = 6             # giay cho ExpressVPN mo
+VPN_STEP_WAIT = 5            # giay giua cac buoc doi location
+VPN_CHANGE_BTN = (315, 350)   # fallback: nut "Change" (anh 5)
+VPN_ALL_TAB = (300, 115)      # fallback: tab "ALL LOCATIONS" (anh 6)
+VPN_COUNTRY_ROWS = [          # fallback: cac hang nuoc
+    (120, 224), (120, 282), (120, 339), (120, 396),
+]
+# Ten nuoc de nhan dien hang trong danh sach qua uiautomator (khop chinh xac).
+VPN_COUNTRIES = {
+    "United States", "United Kingdom", "Japan", "Australia", "Germany", "France",
+    "Belgium", "Denmark", "Hong Kong", "Ireland", "Italy", "New Zealand",
+    "Netherlands", "Spain", "Sweden", "Switzerland", "Canada", "Singapore",
+    "Norway", "Finland", "Austria", "Poland", "Portugal", "Brazil", "India",
+    "Indonesia", "Malaysia", "Taiwan", "South Korea", "Thailand", "Vietnam",
+}
+
 # Doc trang thai tu chinh dong chu do. Dung \b: 'Unprotected' chua 'protected',
 # con 'Not connected' / 'Disconnected' thi chua 'connected' -- so bang `in` la
 # nham ca hai chieu.
@@ -226,55 +245,52 @@ def connect_vpn(inst: Instance, log: Log) -> None:
     # Poll re hon HAN so voi mo app: mot lenh `ip addr` moi 2 giay, doi lai
     # bo qua duoc ca start_app + uiautomator dump. Vong nay thoat NGAY khi tun
     # len, nen cho lau khong ton gi neu VPN len som.
-    deadline = time.monotonic() + AUTOCONNECT_WAIT
-    while time.monotonic() < deadline:
-        if inst.vpn_connected():
-            log("VPN tu len sau khi boot -- khong dung toi nut Connect")
-            return
-        time.sleep(2)
-
     inst.start_app_adb(VPN_PKG)
-    time.sleep(4)  # cho app ve xong man hinh chinh truoc khi dump UI
+    pause(VPN_OPEN_WAIT, log, "cho ExpressVPN mo")
 
-    # Hop thoai "Connection request" cua he thong -- chi hien tren may chua tung
-    # bam OK. Clone ke thua consent tu may goc nen thuong khong gap.
+    # Hop thoai "Connection request" cua he thong -- clone thuong da co consent.
     for label in ("OK", "Allow", "Dong y"):
         if inst.tap_node(text=label):
             log(f"da bam '{label}' o hop thoai VPN cua he thong")
-            time.sleep(2)
+            pause(2)
             break
 
-    nodes = inst.ui_nodes()
-    status = inst.find_node(res_id=VPN_STATUS_ID, nodes=nodes)
-    txt = status["text"] if status else ""
-    if status:
-        log(f"trang thai app: {txt!r}")
-
-    if status_says_on(txt):
-        # App da bat roi, chi la tun chua kip len. Bam vao day la NGAT.
-        log("app bao dang ket noi -- khong bam nut, chi doi tun")
+    # Doi location -> moi acc mot IP: Change -> tab All Locations -> random nuoc.
+    # ExpressVPN la app that nen UU TIEN uiautomator (tap theo text/node); chi khi
+    # khong doc duoc widget moi dung toa do pixel.
+    if inst.tap_node(text="Change", timeout=15):
+        log("bam Change (widget)")
     else:
-        for hint in VPN_CONNECT_HINTS:
-            n = inst.find_node(**hint, nodes=nodes)
-            if n:
-                log(f"bam Connect ({hint}) tai {n['center']}")
-                inst.tap(*n["center"])
-                break
-        else:
-            # Nut nguon nam giua man hinh, hoi cao hon tam. Kem chac chan hon han
-            # res_id nen phai bao ro la dang doan.
-            log("KHONG thay nut Connect qua uiautomator -> bam giua man hinh")
-            log("   chay lai voi --dump-ui roi sua VPN_CONNECT_HINTS cho dung")
-            inst.tap_percent(50, 39)
+        log("khong thay Change (widget) -> bam toa do")
+        inst.tap(*VPN_CHANGE_BTN)
+    pause(VPN_STEP_WAIT, log, "cho man VPN Locations")
+
+    if inst.tap_node(text="All Locations", timeout=10):
+        log("bam tab ALL LOCATIONS (widget)")
+    else:
+        log("khong thay tab (widget) -> bam toa do")
+        inst.tap(*VPN_ALL_TAB)
+    pause(VPN_STEP_WAIT, log, "cho danh sach nuoc")
+
+    # Chon random 1 nuoc dang hien -- lay toa do THAT tu widget tree.
+    try:
+        nodes = inst.ui_nodes()
+    except Exception:
+        nodes = []
+    present = [n for n in nodes if n["text"].strip() in VPN_COUNTRIES]
+    if present:
+        pick = random.choice(present)
+        log(f"chon nuoc: {pick['text']!r} tai {pick['center']} (widget)")
+        inst.tap(*pick["center"])
+    else:
+        x, y = random.choice(VPN_COUNTRY_ROWS)
+        log(f"khong doc duoc danh sach nuoc (widget) -> bam toa do random ({x}, {y})")
+        inst.tap(x, y)
 
     try:
         inst.wait_vpn(timeout=120)
     except TimeoutError:
-        # Doi ma khong len: hoac cu bam vua roi ngat nham, hoac app that su chua
-        # noi duoc. Bam mot lan nua roi doi tiep -- chi mot lan, khong lap vo han.
-        log("tun chua len sau 120s -> bam Connect them mot lan roi doi tiep")
-        if not inst.tap_node(**VPN_CONNECT_HINTS[0]):
-            inst.tap_percent(50, 39)
+        log("tun chua len sau 120s -> doi them 120s")
         inst.wait_vpn(timeout=120)
     log("VPN da len (tun co IP)")
 
