@@ -325,10 +325,12 @@ def connect_vpn(inst: Instance, log: Log) -> None:
     log("VPN da len (tun co IP)")
 
 
-def one_round(inst: Instance, log: Log) -> str:
+def one_round(inst: Instance, log: Log) -> str | None:
     """Mot vong: bat may ao -> VPN -> Roblox -> tao xong mot tai khoan.
 
-    Tra ve username vua tao, de nguoi goi ghi lai ket qua.
+    Tra ve username vua tao, de nguoi goi ghi lai ket qua. Tra ve None khi
+    cookie lay duoc thuoc tai khoan KHAC -- luc do acc vua sinh coi nhu chua
+    tao duoc va ban ghi da bi xoa.
     """
 
     t0 = [time.monotonic()]
