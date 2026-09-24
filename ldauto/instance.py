@@ -35,17 +35,30 @@ class Instance:
     def connect(self, retries: int = 10, delay: float = 2.0) -> adbutils.AdbDevice:
         """Ket noi ADB, thu lai vi may ao vua boot thuong chua mo cong ngay."""
         last: Exception | None = None
-        for _ in range(retries):
+        for attempt in range(retries):
             try:
+                if attempt:
+                    # Trang thai 'offline' DINH LAI trong adb server: goi connect
+                    # lai chi tra ve dung cai entry hong do, nen thu bao nhieu lan
+                    # cung ra 'device offline'. disconnect truoc de xoa entry, ep
+                    # bat tay lai tu dau.
+                    try:
+                        adbutils.adb.disconnect(self.serial)
+                    except Exception:
+                        pass
                 adbutils.adb.connect(self.serial, timeout=5.0)
                 dev = adbutils.adb.device(self.serial)
-                dev.shell("echo ping")  # xac nhan that su goi duoc
+                # co timeout: khong thi mot thiet bi nua song nua chet treo o day
+                dev.shell("echo ping", timeout=10)  # xac nhan that su goi duoc
                 self._device = dev
                 return dev
             except Exception as exc:  # adbutils nem nhieu loai loi khac nhau
                 last = exc
                 time.sleep(delay)
-        raise ConnectionError(f"Khong ket noi duoc ADB toi {self.serial}: {last}")
+        raise ConnectionError(
+            f"Khong ket noi duoc ADB toi {self.serial}: {last}. "
+            f"ADB dang thay: {self.list_adb_devices() or 'khong co gi'}"
+        )
 
     @property
     def device(self) -> adbutils.AdbDevice:
