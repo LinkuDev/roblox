@@ -190,8 +190,10 @@ class App:
         self.var_rounds = tk.IntVar(value=c.get("rounds", 0))
         self.var_clones = tk.IntVar(value=c.get("clones", rf.CLONES))
         self.var_slow = tk.DoubleVar(value=c.get("slow", 1.0))
+        # Cong adb server. 5037 mac dinh hay bi chan tren Windows -> de 5038.
+        self.var_adb_port = tk.StringVar(value=str(c.get("adb_port", "5038")))
         for v in (self.var_ld, self.var_ldplayer, self.var_db, self.var_rounds,
-                  self.var_clones, self.var_slow):
+                  self.var_clones, self.var_slow, self.var_adb_port):
             v.trace_add("write", lambda *a: self._save_config())
 
         row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
@@ -217,6 +219,8 @@ class App:
         ttk.Label(row, text="He so cho:").pack(side="left", padx=(12, 0))
         ttk.Spinbox(row, from_=0.5, to=5, increment=0.5, width=5,
                     textvariable=self.var_slow).pack(side="left", padx=4)
+        ttk.Label(row, text="ADB port:").pack(side="left", padx=(12, 0))
+        ttk.Entry(row, textvariable=self.var_adb_port, width=6).pack(side="left", padx=4)
         self.config_widgets = f
 
     def _build_sources(self):
@@ -279,6 +283,7 @@ class App:
                 "rounds": self.var_rounds.get(),
                 "clones": self.var_clones.get(),
                 "slow": self.var_slow.get(),
+                "adb_port": self.var_adb_port.get(),
                 "sources": self._source_names(self.source_rows),
             }
             if hasattr(self, "login_source_rows"):
@@ -320,6 +325,10 @@ class App:
             ttk.Label(row, text=label, width=11).pack(side="left")
             ttk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
             ttk.Button(row, text="...", width=3, command=cmd).pack(side="left", padx=3)
+        # ADB port (dung chung bien var_adb_port voi tab 'Tao acc').
+        row = ttk.Frame(cf); row.pack(fill="x", padx=6, pady=3)
+        ttk.Label(row, text="ADB port:", width=11).pack(side="left")
+        ttk.Entry(row, textvariable=self.var_adb_port, width=6).pack(side="left")
         self.login_config_widgets = cf
 
         # Nguon cho login: clone giong luong tao acc, xep cua so khoi chong nhau.
@@ -398,6 +407,7 @@ class App:
 
         self._login_accounts = accounts
         self._login_sources = sources
+        self._apply_adb_port()
         rf.STOP.clear()
         rf.RESUME.set()
         rf.LDCONSOLE = self.var_ld.get()
@@ -482,6 +492,23 @@ class App:
             self.var_db.set(p)
 
     # ----- dieu khien -----
+    def _apply_adb_port(self):
+        """Ap cong adb server cho ca tien trinh + adbutils. Goi truoc moi lan chay.
+
+        5037 hay bi chan tren Windows -> cho phep doi cong (vd 5038). Set ca bien
+        moi truong (adb start-server dung no) lan tao lai adbutils.adb client.
+        """
+        port = (self.var_adb_port.get() or "").strip()
+        if not port:
+            return
+        os.environ["ANDROID_ADB_SERVER_PORT"] = port
+        try:
+            import adbutils
+            adbutils.adb = adbutils.AdbClient(host="127.0.0.1", port=int(port))
+            rf.Log("main")(f"ADB server dung cong {port}")
+        except Exception as exc:
+            rf.Log("main")(f"dat ADB port loi: {type(exc).__name__}: {exc}")
+
     def _running(self) -> bool:
         return self.worker is not None and self.worker.is_alive()
 
@@ -494,6 +521,7 @@ class App:
             return
         self._sources = sources
         self._save_config()
+        self._apply_adb_port()
 
         rf.STOP.clear()
         rf.RESUME.set()
