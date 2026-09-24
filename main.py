@@ -502,10 +502,16 @@ class App:
         if not port:
             return
         os.environ["ANDROID_ADB_SERVER_PORT"] = port
+        # Dung CHUNG adb.exe voi LDPlayer (canh ldconsole) -> mot ban duy nhat,
+        # khong "version war". Sau khi nang adb cua LDPlayer (setup_adb.bat) thi
+        # app cung dung ban moi do luon.
+        adb_exe = Path(self.var_ld.get()).with_name("adb.exe")
+        if adb_exe.exists():
+            os.environ["ADBUTILS_ADB_PATH"] = str(adb_exe)
         try:
             import adbutils
             adbutils.adb = adbutils.AdbClient(host="127.0.0.1", port=int(port))
-            rf.Log("main")(f"ADB server dung cong {port}")
+            rf.Log("main")(f"ADB server cong {port}, adb={adb_exe if adb_exe.exists() else 'mac dinh'}")
         except Exception as exc:
             rf.Log("main")(f"dat ADB port loi: {type(exc).__name__}: {exc}")
 
