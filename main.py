@@ -190,8 +190,8 @@ class App:
         self.var_rounds = tk.IntVar(value=c.get("rounds", 0))
         self.var_clones = tk.IntVar(value=c.get("clones", rf.CLONES))
         self.var_slow = tk.DoubleVar(value=c.get("slow", 1.0))
-        # Cong adb server. 5037 mac dinh hay bi chan tren Windows -> de 5038.
-        self.var_adb_port = tk.StringVar(value=str(c.get("adb_port", "5038")))
+        # Cong adb server. Mac dinh 5037 (chuan, dung chung server voi LDPlayer).
+        self.var_adb_port = tk.StringVar(value=str(c.get("adb_port", "5037")))
         for v in (self.var_ld, self.var_ldplayer, self.var_db, self.var_rounds,
                   self.var_clones, self.var_slow, self.var_adb_port):
             v.trace_add("write", lambda *a: self._save_config())
