@@ -25,7 +25,14 @@ PLATFORM_TOOLS_URL = (
 )
 # adb.exe khong chay mot minh: thieu hai DLL nay la no im lang khong len server.
 NEEDED = ("adb.exe", "AdbWinApi.dll", "AdbWinUsbApi.dll")
+# `adb version` in ra HAI so:
+#     Android Debug Bridge version 1.0.41      <- version GIAO THUC
+#     Version 35.0.2-12147458                  <- version platform-tools that
+# So giao thuc dung yen o 1.0.41 tu nam 2017, nen no KHONG phan biet duoc ban
+# nam 2019 voi ban nam nay. Phai doc them so thu hai moi biet ban co that su cu
+# hay khong. LDPlayer ship ban 1.0.31 -- cu den muc so giao thuc cung khac.
 MIN_VERSION = (1, 0, 41)
+MIN_BUILD = (30, 0, 0)
 
 _CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
@@ -49,8 +56,37 @@ def adb_version(adb: str | Path) -> tuple[int, ...] | None:
     return tuple(int(g) for g in m.groups()) if m else None
 
 
+def adb_build(adb: str | Path) -> tuple[int, ...] | None:
+    """Version platform-tools that, vd (35, 0, 2). None neu ban qua cu (khong in)."""
+    adb = Path(adb)
+    if not adb.exists():
+        return None
+    m = re.search(r"^Version\s+(\d+)\.(\d+)\.(\d+)",
+                  _run([str(adb), "version"]), re.M)
+    return tuple(int(g) for g in m.groups()) if m else None
+
+
 def version_str(v: tuple[int, ...] | None) -> str:
     return ".".join(map(str, v)) if v else "khong doc duoc"
+
+
+def version_label(adb: str | Path) -> str:
+    """Chuoi de hien cho nguoi dung, gom ca hai so."""
+    proto, build = adb_version(adb), adb_build(adb)
+    if proto is None:
+        return "khong doc duoc"
+    return f"{version_str(proto)}" + (f" (platform-tools {version_str(build)})"
+                                      if build else " (khong ro platform-tools)")
+
+
+def needs_upgrade(adb: str | Path) -> bool:
+    """Co nen nang khong -- xet ca so giao thuc lan so platform-tools."""
+    proto = adb_version(adb)
+    if proto is None or proto < MIN_VERSION:
+        return True
+    build = adb_build(adb)
+    # Khong in duoc so platform-tools = ban rat cu (truoc ~2017) -> nen nang.
+    return build is None or build < MIN_BUILD
 
 
 def find_bundled_adb() -> Path | None:
@@ -133,10 +169,11 @@ def patch_ldplayer_adb(
     if not target.exists():
         return False, f"Khong thay {target}"
 
-    cur = adb_version(target)
-    log(f"adb hien tai: {version_str(cur)}")
-    if cur and cur >= MIN_VERSION:
-        return True, f"adb da la ban {version_str(cur)}, khong can nang."
+    cur = version_label(target)
+    log(f"adb hien tai: {cur}")
+    if not needs_upgrade(target):
+        return True, (f"adb da du moi ({cur}), khong can nang.\n\n"
+                      f"Ban cu gay loi la 1.0.31 -- ban tren may nay moi hon.")
 
     try:
         src_dir = download_platform_tools(log)
@@ -173,12 +210,12 @@ def patch_ldplayer_adb(
     if "adb.exe" not in copied:
         return False, "Khong chep duoc adb.exe"
 
-    new = adb_version(target)
-    log(f"adb sau khi nang: {version_str(new)}")
+    new = version_label(target)
+    log(f"adb sau khi nang: {new}")
     shutil.rmtree(src_dir.parent, ignore_errors=True)
-    if new and new >= MIN_VERSION:
-        return True, f"Da nang adb {version_str(cur)} -> {version_str(new)} ({', '.join(copied)})"
-    return False, f"Chep xong nhung version doc ra van la {version_str(new)}"
+    if not needs_upgrade(target):
+        return True, f"Da nang adb: {cur} -> {new} ({', '.join(copied)})"
+    return False, f"Chep xong nhung version doc ra van la {new}"
 
 
 def _main() -> int:
