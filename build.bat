@@ -12,30 +12,39 @@ if not errorlevel 1 echo Da tat RobloxFarm.exe dang chay.
 pip install -r requirements.txt
 pip install pyinstaller
 
-REM ---- Gói adb moi VAO exe -------------------------------------------------
+REM ---- Goi adb moi VAO exe -------------------------------------------------
 REM May dich thuong con adb 1.0.31 cua LDPlayer. Nhet san ban moi vao exe thi
 REM mang sang may nao cung chay duoc ngay, khong phai nang tay tung may.
 REM Tai mot lan roi cache trong vendor\ (da bo qua trong .gitignore).
+REM
+REM Dung goto thay vi if(...) long nhau: `set` trong khoi ngoac la cai bay kinh
+REM dien cua batch, va o day im lang bo qua bundle thi rat kho nhan ra.
 set "VENDOR=%~dp0vendor\platform-tools"
-if not exist "%VENDOR%\adb.exe" (
-    echo Tai platform-tools de bundle vao exe...
-    powershell -NoProfile -Command "try { Invoke-WebRequest 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' -OutFile \"$env:TEMP\pt.zip\" } catch { exit 1 }"
-    if errorlevel 1 (
-        echo [!] Tai that bai -- van build tiep, nhung exe SE KHONG kem adb.
-        echo     May dich phai tu bam nut "Nang ADB" trong app.
-    ) else (
-        powershell -NoProfile -Command "Expand-Archive -Force \"$env:TEMP\pt.zip\" \"%~dp0vendor\""
-    )
-)
-
 set "ADBARGS="
-if exist "%VENDOR%\adb.exe" (
-    set "ADBARGS=--add-binary "%VENDOR%\adb.exe;adb" --add-binary "%VENDOR%\AdbWinApi.dll;adb" --add-binary "%VENDOR%\AdbWinUsbApi.dll;adb""
-    echo adb se duoc bundle vao exe.
-) else (
-    echo [!] Khong co adb de bundle -- exe se dung adb cua LDPlayer tren may dich.
-)
+if exist "%VENDOR%\adb.exe" goto :have_adb
 
+echo.
+echo === Tai platform-tools de bundle adb vao exe ===
+powershell -NoProfile -Command "try { Invoke-WebRequest 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' -OutFile \"$env:TEMP\pt.zip\" -UseBasicParsing } catch { exit 1 }"
+if errorlevel 1 goto :no_adb
+powershell -NoProfile -Command "Expand-Archive -Force \"$env:TEMP\pt.zip\" \"%~dp0vendor\""
+if not exist "%VENDOR%\adb.exe" goto :no_adb
+
+:have_adb
+set "ADBARGS=--add-binary "%VENDOR%\adb.exe;adb" --add-binary "%VENDOR%\AdbWinApi.dll;adb" --add-binary "%VENDOR%\AdbWinUsbApi.dll;adb""
+echo.
+echo [ OK ] Se bundle adb vao exe:
+"%VENDOR%\adb.exe" version | findstr /i version
+goto :adb_done
+
+:no_adb
+echo.
+echo [!] KHONG bundle duoc adb (tai that bai hoac giai nen hong).
+echo     Van build tiep, nhung exe se dung adb cua LDPlayer tren may dich.
+echo     May dich phai tu bam nut "Nang ADB" trong app.
+echo.
+
+:adb_done
 REM YEU CAU: Python >= 3.10.1 (ban 3.10.0 co bug 'dis' lam PyInstaller vo khi
 REM quet PIL). Nang Python truoc khi build.
 REM
@@ -72,6 +81,12 @@ if not exist "dist\RobloxFarm.exe" goto :hong
 
 echo.
 echo === Xong. File o: dist\RobloxFarm.exe ===
+if defined ADBARGS (
+    echo     adb moi DA duoc nhet vao exe.
+) else (
+    echo     [!] exe KHONG kem adb -- may dich phai bam nut "Nang ADB".
+)
+for %%F in ("dist\RobloxFarm.exe") do echo     kich thuoc: %%~zF bytes
 echo Chep RobloxFarm.exe ra thu muc lam viec; accounts.db se nam canh no.
 pause
 exit /b 0
