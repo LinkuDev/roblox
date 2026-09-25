@@ -312,6 +312,10 @@ class App:
         # moi la bam duoc ngay, khong phai chep thêm file .bat.
         self.btn_adb = ttk.Button(f, text="\u2b06 Nang ADB", command=self._upgrade_adb)
         self.btn_adb.pack(side="right", padx=4)
+        # Chan doan: "may nay chay duoc may kia khong" chi giai duoc bang cach
+        # so hai may tren cung mot bo so lieu.
+        self.btn_diag = ttk.Button(f, text="\U0001fa7a Kiem tra", command=self._diagnose)
+        self.btn_diag.pack(side="right", padx=4)
 
     def _build_login(self):
         """Tab LOGIN: dan danh sach user:pass, dang nhap tung acc lay cookie.
@@ -497,6 +501,71 @@ class App:
             self.var_db.set(p)
 
     # ----- dieu khien -----
+    def _diagnose(self):
+        """In moi thu can de so may chay duoc voi may khong chay duoc."""
+        self.btn_diag.config(state="disabled")
+        log = rf.Log("diag")
+
+        def work():
+            import socket
+            try:
+                log("=" * 52)
+                log(f"exe/frozen : {getattr(sys, 'frozen', False)}")
+                log(f"app_dir    : {app_dir()}")
+
+                # 1. adb nao dang duoc dung
+                adb = os.environ.get("ADBUTILS_ADB_PATH", "(chua dat)")
+                log(f"ADBUTILS_ADB_PATH: {adb}")
+                if adb != "(chua dat)" and Path(adb).exists():
+                    log(f"  version  : {adbsetup.version_label(adb)}")
+                else:
+                    log("  [!] file khong ton tai -> adbutils se dung ban cua rieng no")
+                ld_adb = Path(self.var_ld.get()).with_name("adb.exe")
+                if ld_adb.exists():
+                    log(f"adb cua LDPlayer: {adbsetup.version_label(ld_adb)}")
+                log(f"ANDROID_ADB_SERVER_PORT: "
+                    f"{os.environ.get('ANDROID_ADB_SERVER_PORT', '(chua dat)')}")
+
+                # 2. adb server co song khong
+                try:
+                    import adbutils
+                    log(f"adb server: protocol {adbutils.adb.server_version()}")
+                    for d in adbutils.adb.device_list():
+                        log(f"  {d.serial}")
+                except Exception as exc:
+                    log(f"  [!] khong noi duoc adb server: {type(exc).__name__}: {exc}")
+
+                # 3. cong nao dang mo -- khong co cong nao = ADB debugging bi TAT
+                opened = []
+                for port in range(5554, 5600):
+                    with socket.socket() as sk:
+                        sk.settimeout(0.2)
+                        if sk.connect_ex(("127.0.0.1", port)) == 0:
+                            opened.append(port)
+                log(f"cong ADB dang mo: {opened or 'KHONG CO CONG NAO'}")
+                if not opened:
+                    log("  [!] Khong may ao nao mo cong ADB.")
+                    log("      -> LDPlayer > Settings > Other settings > ADB debugging")
+                    log("         chon 'Open local connection', LUU, roi KHOI DONG LAI may ao.")
+                    log("      Day la setting cua TUNG may ao, khong phai setting chung.")
+
+                # 4. ldconsole thay gi
+                try:
+                    console = rf.LDConsole(self.var_ld.get())
+                    infos = console.list2()
+                    log(f"ldconsole thay {len(infos)} may ao:")
+                    for i in infos[:20]:
+                        log(f"  index={i.index:<4} {i.name!r:22} chay={i.running} "
+                            f"{i.width}x{i.height}@{i.dpi}")
+                except Exception as exc:
+                    log(f"  [!] ldconsole loi: {type(exc).__name__}: {exc}")
+                log("=" * 52)
+            except Exception as exc:
+                log(f"[!] kiem tra loi: {type(exc).__name__}: {exc}")
+            self.root.after(0, lambda: self.btn_diag.config(state="normal"))
+
+        threading.Thread(target=work, daemon=True).start()
+
     def _upgrade_adb(self):
         """Nang adb.exe cua LDPlayer len ban moi cua Google."""
         if self._running():
