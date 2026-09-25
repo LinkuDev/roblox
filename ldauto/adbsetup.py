@@ -78,19 +78,25 @@ def ensure_bundled_adb(dest_dir: str | Path) -> Path | None:
     src = find_bundled_adb()
     if src is None:
         return None
-    dest_dir = Path(dest_dir) / "adb"
-    if src.parent == dest_dir:
-        return src                      # da giai nen tu truoc
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    for name in NEEDED:
-        f = src.parent / name
-        if f.exists():
-            try:
-                shutil.copy2(f, dest_dir / name)
-            except OSError:
-                pass                    # dang chay -> giu ban cu, van dung duoc
-    out = dest_dir / "adb.exe"
-    return out if out.exists() else None
+    try:
+        dest_dir = Path(dest_dir) / "adb"
+        if src.parent == dest_dir:
+            return src                  # da giai nen tu truoc
+        # mkdir co the hong khi exe nam o cho chi doc (vd Program Files). Hong
+        # o day khong duoc lam chet ca app: tra ve None de nguoi goi lui ve
+        # adb cua LDPlayer.
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        for name in NEEDED:
+            f = src.parent / name
+            if f.exists():
+                try:
+                    shutil.copy2(f, dest_dir / name)
+                except OSError:
+                    pass                # dang chay -> giu ban cu, van dung duoc
+        out = dest_dir / "adb.exe"
+        return out if out.exists() else None
+    except OSError:
+        return None
 
 
 def download_platform_tools(log=print) -> Path:
