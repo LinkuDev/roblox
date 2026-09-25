@@ -12,6 +12,30 @@ if not errorlevel 1 echo Da tat RobloxFarm.exe dang chay.
 pip install -r requirements.txt
 pip install pyinstaller
 
+REM ---- Gói adb moi VAO exe -------------------------------------------------
+REM May dich thuong con adb 1.0.31 cua LDPlayer. Nhet san ban moi vao exe thi
+REM mang sang may nao cung chay duoc ngay, khong phai nang tay tung may.
+REM Tai mot lan roi cache trong vendor\ (da bo qua trong .gitignore).
+set "VENDOR=%~dp0vendor\platform-tools"
+if not exist "%VENDOR%\adb.exe" (
+    echo Tai platform-tools de bundle vao exe...
+    powershell -NoProfile -Command "try { Invoke-WebRequest 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' -OutFile \"$env:TEMP\pt.zip\" } catch { exit 1 }"
+    if errorlevel 1 (
+        echo [!] Tai that bai -- van build tiep, nhung exe SE KHONG kem adb.
+        echo     May dich phai tu bam nut "Nang ADB" trong app.
+    ) else (
+        powershell -NoProfile -Command "Expand-Archive -Force \"$env:TEMP\pt.zip\" \"%~dp0vendor\""
+    )
+)
+
+set "ADBARGS="
+if exist "%VENDOR%\adb.exe" (
+    set "ADBARGS=--add-binary "%VENDOR%\adb.exe;adb" --add-binary "%VENDOR%\AdbWinApi.dll;adb" --add-binary "%VENDOR%\AdbWinUsbApi.dll;adb""
+    echo adb se duoc bundle vao exe.
+) else (
+    echo [!] Khong co adb de bundle -- exe se dung adb cua LDPlayer tren may dich.
+)
+
 REM YEU CAU: Python >= 3.10.1 (ban 3.10.0 co bug 'dis' lam PyInstaller vo khi
 REM quet PIL). Nang Python truoc khi build.
 REM
@@ -38,6 +62,7 @@ pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --exclude-module numpy ^
   --exclude-module apkutils2 ^
   --exclude-module apkutils ^
+  %ADBARGS% ^
   main.py
 
 REM Phai kiem tra: khong co doan nay thi build hong van in "Xong", va lan sau

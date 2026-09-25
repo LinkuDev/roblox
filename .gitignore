@@ -83,3 +83,6 @@ proxies.txt
 accounts_export.*
 cookies/
 Cookies_*.db
+
+# platform-tools tai ve de bundle vao exe -- khong commit binary 10MB
+vendor/

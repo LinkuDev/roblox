@@ -57,6 +57,7 @@ def save_config(data: dict) -> None:
 
 import roblox_flow as rf  # noqa: E402
 from ldauto import AccountStore, ensure_warning_prefix  # noqa: E402
+from ldauto import adbsetup  # noqa: E402
 from ldauto import telemetry  # noqa: E402
 
 
@@ -307,6 +308,10 @@ class App:
         # Dat tach han sang phai: bam nham nut nay la mat sach kho tai khoan.
         self.btn_clear = ttk.Button(f, text="\U0001f5d1 Xoa DB", command=self._clear_db)
         self.btn_clear.pack(side="right", padx=4)
+        # Nang adb cua LDPlayer -- thay cho setup_adb.bat, de mang exe sang may
+        # moi la bam duoc ngay, khong phai chep thêm file .bat.
+        self.btn_adb = ttk.Button(f, text="\u2b06 Nang ADB", command=self._upgrade_adb)
+        self.btn_adb.pack(side="right", padx=4)
 
     def _build_login(self):
         """Tab LOGIN: dan danh sach user:pass, dang nhap tung acc lay cookie.
@@ -492,6 +497,52 @@ class App:
             self.var_db.set(p)
 
     # ----- dieu khien -----
+    def _upgrade_adb(self):
+        """Nang adb.exe cua LDPlayer len ban moi cua Google."""
+        if self._running():
+            messagebox.showwarning(
+                "Dang chay", "Dung farm truoc: buoc nay tat LDPlayer va adb server.")
+            return
+        ld = Path(self.var_ld.get())
+        ld_dir = ld.parent if ld.is_file() else ld
+        if not (ld_dir / "adb.exe").exists():
+            messagebox.showerror("Loi", f"Khong thay adb.exe trong:\n{ld_dir}")
+            return
+
+        cur = adbsetup.adb_version(ld_dir / "adb.exe")
+        if not messagebox.askyesno(
+                "Nang ADB",
+                f"adb hien tai: {adbsetup.version_str(cur)}\n"
+                f"Se tai platform-tools moi nhat cua Google (~10MB) va thay vao:\n"
+                f"{ld_dir}\n\n"
+                f"LDPlayer se bi TAT. Ban cu duoc backup thanh adb.exe.bak.\n\n"
+                f"Tiep tuc?"):
+            return
+
+        # Tai + chep chay o thread nen: tai vai chuc giay, lam treo GUI neu chay
+        # thang tren main thread.
+        self.btn_adb.config(state="disabled")
+        log = rf.Log("adb")
+
+        def work():
+            try:
+                ok, msg = adbsetup.patch_ldplayer_adb(ld_dir, log=log)
+            except Exception as exc:
+                ok, msg = False, f"{type(exc).__name__}: {exc}"
+            log(("[ OK ] " if ok else "[FAIL] ") + msg)
+            # Quay ve main thread moi duoc dung tkinter.
+            self.root.after(0, lambda: self._upgrade_adb_done(ok, msg))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _upgrade_adb_done(self, ok: bool, msg: str):
+        self.btn_adb.config(state="normal")
+        if ok:
+            self._apply_adb_port()      # tro adbutils sang ban vua thay
+            messagebox.showinfo("Xong", msg)
+        else:
+            messagebox.showerror("Nang ADB that bai", msg)
+
     def _apply_adb_port(self):
         """Ap cong adb server cho ca tien trinh + adbutils. Goi truoc moi lan chay.
 
@@ -505,13 +556,20 @@ class App:
         # Dung CHUNG adb.exe voi LDPlayer (canh ldconsole) -> mot ban duy nhat,
         # khong "version war". Sau khi nang adb cua LDPlayer (setup_adb.bat) thi
         # app cung dung ban moi do luon.
-        adb_exe = Path(self.var_ld.get()).with_name("adb.exe")
-        if adb_exe.exists():
+        # Uu tien adb DI KEM app (neu build co bundle): mang exe sang may moi la
+        # chay duoc ngay, khong phu thuoc may do da nang adb chua. Khong co thi
+        # dung chung adb.exe voi LDPlayer (canh ldconsole).
+        adb_exe = adbsetup.ensure_bundled_adb(app_dir())
+        if adb_exe is None:
+            cand = Path(self.var_ld.get()).with_name("adb.exe")
+            adb_exe = cand if cand.exists() else None
+        if adb_exe is not None:
             os.environ["ADBUTILS_ADB_PATH"] = str(adb_exe)
         try:
             import adbutils
             adbutils.adb = adbutils.AdbClient(host="127.0.0.1", port=int(port))
-            rf.Log("main")(f"ADB server cong {port}, adb={adb_exe if adb_exe.exists() else 'mac dinh'}")
+            rf.Log("main")(f"ADB server cong {port}, adb={adb_exe or 'mac dinh'} "
+                            f"({adbsetup.version_str(adbsetup.adb_version(adb_exe)) if adb_exe else '-'})")
         except Exception as exc:
             rf.Log("main")(f"dat ADB port loi: {type(exc).__name__}: {exc}")
 
