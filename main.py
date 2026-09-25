@@ -308,17 +308,16 @@ class App:
         # Dat tach han sang phai: bam nham nut nay la mat sach kho tai khoan.
         self.btn_clear = ttk.Button(f, text="\U0001f5d1 Xoa DB", command=self._clear_db)
         self.btn_clear.pack(side="right", padx=4)
-        # Nang adb cua LDPlayer -- thay cho setup_adb.bat, de mang exe sang may
-        # moi la bam duoc ngay, khong phai chep thêm file .bat.
-        self.btn_adb = ttk.Button(f, text="\u2b06 Nang ADB", command=self._upgrade_adb)
-        self.btn_adb.pack(side="right", padx=4)
-        # Chan doan: "may nay chay duoc may kia khong" chi giai duoc bang cach
-        # so hai may tren cung mot bo so lieu.
-        self.btn_diag = ttk.Button(f, text="\U0001fa7a Kiem tra", command=self._diagnose)
-        self.btn_diag.pack(side="right", padx=4)
-        self.btn_adbdbg = ttk.Button(f, text="\U0001f513 Bat ADB debug",
+
+        # Hang 2: cong cu ADB -- tach rieng de KHONG bi tran/che khi cua so hep
+        # (9 nut mot hang vuot qua be rong -> may nut phai bi day khuat).
+        f2 = ttk.Frame(self.tab_farm); f2.pack(fill="x", padx=8, pady=(0, 4))
+        self.btn_adb = ttk.Button(f2, text="\u2b06 Nang ADB", command=self._upgrade_adb)
+        self.btn_diag = ttk.Button(f2, text="\U0001fa7a Kiem tra", command=self._diagnose)
+        self.btn_adbdbg = ttk.Button(f2, text="\U0001f513 Bat ADB debug",
                                      command=self._enable_adb_debug)
-        self.btn_adbdbg.pack(side="right", padx=4)
+        for b in (self.btn_adb, self.btn_diag, self.btn_adbdbg):
+            b.pack(side="left", padx=4)
 
     def _build_login(self):
         """Tab LOGIN: dan danh sach user:pass, dang nhap tung acc lay cookie.
