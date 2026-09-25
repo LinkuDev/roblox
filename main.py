@@ -571,11 +571,31 @@ class App:
             adb_exe = cand if cand.exists() else None
         if adb_exe is not None:
             os.environ["ADBUTILS_ADB_PATH"] = str(adb_exe)
+        if port == "5037":
+            # 5037 la cong mac dinh -- LDPlayer cung dung dung cong do voi adb
+            # 1.0.31 cua no. Hai ban adb khac nhau tren cung mot cong se giet
+            # server cua nhau lap di lap lai ("version doesn't match"), va trieu
+            # chung la may ao bat len duoc nhung khong lenh adb nao chay.
+            rf.Log("main")("[!] ADB port = 5037 trung voi cong LDPlayer dung. "
+                           "Neu may ao bat duoc ma khong dieu khien duoc, doi "
+                           "sang 5038 roi chay lai.")
         try:
             import adbutils
             adbutils.adb = adbutils.AdbClient(host="127.0.0.1", port=int(port))
             rf.Log("main")(f"ADB server cong {port}, adb={adb_exe or 'mac dinh'} "
                             f"({adbsetup.version_label(adb_exe) if adb_exe else '-'})")
+            # Tu kiem tra ngay: khong co buoc nay thi loi "version war" chi lo ra
+            # duoi dang may ao treo im lim o buoc doi boot, rat kho lan nguoc.
+            try:
+                srv = adbutils.adb.server_version()
+                devs = [d.serial for d in adbutils.adb.device_list()]
+                rf.Log("main")(f"adb server OK (protocol {srv}), "
+                               f"{len(devs)} thiet bi: {devs or 'chua co'}")
+            except Exception as exc:
+                rf.Log("main")(f"[!] KHONG noi duoc adb server: "
+                               f"{type(exc).__name__}: {exc}")
+                rf.Log("main")("    -> thuong la xung dot phien ban adb tren cung "
+                               "mot cong. Doi ADB port sang 5038 roi chay lai.")
         except Exception as exc:
             rf.Log("main")(f"dat ADB port loi: {type(exc).__name__}: {exc}")
 
