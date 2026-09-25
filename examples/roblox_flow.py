@@ -163,6 +163,8 @@ AFTER_HOLD = 20               # doi 20 giay sau lan giu cuoi, roi moi nhap mat k
 # Man nay tu focus san vao o mat khau -> go thang, khong can bam truoc.
 # Nut Done. Toa do UOC LUONG tu anh chup, chua do tren may that -- xem chu
 # thich trong flow(). Nut cao ~40px nen lech 10-15px van trung.
+PASSWORD_FIELD = (200, 242)  # o nhap mat khau (do tu anh 400x500)
+PASSWORD_FOCUS_WAIT = 2      # doi 2s sau khi bam o password truoc khi go
 DONE_BTN = (200, 370)
 
 # Nhan chung cho MOI moc cho ben duoi (--slow). May yeu hoac chay nhieu may ao
@@ -473,6 +475,10 @@ def one_round(inst: Instance, log: Log) -> str | None:
     # 7. Man "Create Account": nhap mat khau roi bam Done.
     #    Mat khau sinh ra da thoa ca ba luat man hinh nay kiem: >= 8 ky tu,
     #    khong don gian, khong trung username (xem random_password()).
+    #    Bam vao o password truoc: cu spam o buoc tren co the lam mat autofocus.
+    log(f"bam o password {PASSWORD_FIELD}")
+    inst.tap(*PASSWORD_FIELD)
+    pause(PASSWORD_FOCUS_WAIT)
     log(f"go mat khau ({len(acc.password)} ky tu)")
     inst.text(acc.password)
     pause(STEP_PAUSE)
