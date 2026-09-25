@@ -57,7 +57,7 @@ def save_config(data: dict) -> None:
 
 import roblox_flow as rf  # noqa: E402
 from ldauto import AccountStore, ensure_warning_prefix  # noqa: E402
-from ldauto import adbsetup  # noqa: E402
+from ldauto import adbsetup, ldconfig  # noqa: E402
 from ldauto import telemetry  # noqa: E402
 
 
@@ -316,6 +316,9 @@ class App:
         # so hai may tren cung mot bo so lieu.
         self.btn_diag = ttk.Button(f, text="\U0001fa7a Kiem tra", command=self._diagnose)
         self.btn_diag.pack(side="right", padx=4)
+        self.btn_adbdbg = ttk.Button(f, text="\U0001f513 Bat ADB debug",
+                                     command=self._enable_adb_debug)
+        self.btn_adbdbg.pack(side="right", padx=4)
 
     def _build_login(self):
         """Tab LOGIN: dan danh sach user:pass, dang nhap tung acc lay cookie.
@@ -501,6 +504,52 @@ class App:
             self.var_db.set(p)
 
     # ----- dieu khien -----
+    def _enable_adb_debug(self):
+        """Bat ADB debugging cho moi may ao bang cach sua file config.
+
+        Day la setting CUA TUNG MAY AO. May moi cai hay clone moi tao co the
+        dang tat, va luc do cong ADB van mo nhung bat tay khong bao gio xong --
+        adb bao 'device offline' mai. Bat tay tung may qua giao dien thi qua
+        cuc khi co chuc may.
+        """
+        if self._running():
+            messagebox.showwarning("Dang chay", "Dung farm truoc da.")
+            return
+        ld_dir = Path(self.var_ld.get())
+        ld_dir = ld_dir.parent if ld_dir.is_file() else ld_dir
+        log = rf.Log("adbdbg")
+
+        files = ldconfig.config_files(ld_dir)
+        if not files:
+            messagebox.showerror(
+                "Loi", f"Khong thay file config nao trong:\n"
+                       f"{ldconfig.config_dir(ld_dir)}")
+            return
+        if not messagebox.askyesno(
+                "Bat ADB debug",
+                f"Se bat ADB debugging cho {len(files)} may ao trong:\n"
+                f"{ldconfig.config_dir(ld_dir)}\n\n"
+                f"MOI MAY AO SE BI TAT (sua khi dang chay thi mat trang).\n"
+                f"File cu duoc backup thanh .config.bak.\n\nTiep tuc?"):
+            return
+
+        try:
+            console = rf.LDConsole(self.var_ld.get())
+            log("tat het may ao truoc khi sua config...")
+            console.quit_all()
+            time.sleep(5)
+        except Exception as exc:
+            log(f"[!] khong tat duoc may ao: {type(exc).__name__}: {exc}")
+
+        log("truoc khi sua:")
+        for name, keys in ldconfig.survey(ld_dir):
+            log(f"  {name}: {keys or '(khong co khoa adb)'}")
+        n, total = ldconfig.set_adb_debug(ld_dir, log=log)
+        log(f"da sua {n}/{total} file")
+        messagebox.showinfo(
+            "Xong", f"Da sua {n}/{total} file config.\n\n"
+                    f"Bat lai may ao roi bam 'Kiem tra' de xac nhan cong ADB da mo.")
+
     def _diagnose(self):
         """In moi thu can de so may chay duoc voi may khong chay duoc."""
         self.btn_diag.config(state="disabled")
@@ -543,11 +592,25 @@ class App:
                         if sk.connect_ex(("127.0.0.1", port)) == 0:
                             opened.append(port)
                 log(f"cong ADB dang mo: {opened or 'KHONG CO CONG NAO'}")
-                if not opened:
-                    log("  [!] Khong may ao nao mo cong ADB.")
-                    log("      -> LDPlayer > Settings > Other settings > ADB debugging")
-                    log("         chon 'Open local connection', LUU, roi KHOI DONG LAI may ao.")
-                    log("      Day la setting cua TUNG may ao, khong phai setting chung.")
+
+                # Setting ADB debugging cua TUNG may ao -- doc thang tu file
+                # config. Cong mo ma bat tay khong xong ('device offline' mai)
+                # thi gan nhu chac la khoa nay dang bang 0.
+                ld_dir = Path(self.var_ld.get())
+                ld_dir = ld_dir.parent if ld_dir.is_file() else ld_dir
+                rows = ldconfig.survey(ld_dir)
+                log(f"ADB debugging trong config ({len(rows)} may ao):")
+                off = 0
+                for name, keys in rows[:20]:
+                    if not keys:
+                        log(f"  {name}: (khong co khoa adb)")
+                        off += 1
+                    else:
+                        log(f"  {name}: {keys}")
+                        off += sum(1 for v in keys.values() if v in (0, "0"))
+                if off:
+                    log(f"  [!] {off} may ao co ADB debugging TAT hoac thieu khoa.")
+                    log("      -> bam nut 'Bat ADB debug' roi bat lai may ao.")
 
                 # 4. ldconsole thay gi
                 try:
