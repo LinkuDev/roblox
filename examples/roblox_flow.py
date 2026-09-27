@@ -67,8 +67,9 @@ VPN_CONTINUE_BTN = (279, 298) # fallback: nut Continue trong hop thoai (400x500)
 # Danh sach giong het nhau tren moi may ao va khong doi, nen chi gom MOT LAN
 # roi dung chung cho ca farm.
 VPN_LIST_ANCHOR = (200, 300)   # diem dat ngon tay de cuon trong danh sach
-VPN_LIST_SCROLL_DY = -180      # am = ngon tay di len = danh sach chay xuong
-VPN_LIST_MAX_SCROLLS = 40      # tran an toan, khong cuon vo han
+VPN_LIST_SCROLL_DY = -280      # am = ngon tay di len = danh sach chay xuong
+# 6 hang hien ra ~330px; cuon 280px de van chua lai ~1 hang, khong nhay qua ai.
+VPN_LIST_MAX_SCROLLS = 60      # tran an toan, khong cuon vo han
 # Neu MOT lan dump da ra tu ngan nay ten tro len thi app dung ScrollView voi moi
 # hang dung san trong cay -- lay het mot phat, khoi cuon. Chi khi app dung
 # RecyclerView (chi dung hang dang hien) moi phai cuon.
@@ -84,18 +85,6 @@ VPN_LIST_CHROME = {
 _country_cache: "list[str] | None" = None      # ten nuoc, theo thu tu trong list
 _country_step: "dict[str, int]" = {}           # ten -> so nac cuon de thay no
 _country_lock = threading.Lock()
-
-# Ten nuoc de nhan dien hang trong danh sach qua uiautomator (khop chinh xac).
-# CHI la goi y: node nao trung set nay thi chac chan la nuoc. Node khac van
-# duoc nhan neu no bam duoc va khong nam trong VPN_LIST_CHROME -- neu khong thi
-# chi random duoc trong 31 cai duoi day thay vi ca tram nuoc ExpressVPN co.
-VPN_COUNTRIES = {
-    "United States", "United Kingdom", "Japan", "Australia", "Germany", "France",
-    "Belgium", "Denmark", "Hong Kong", "Ireland", "Italy", "New Zealand",
-    "Netherlands", "Spain", "Sweden", "Switzerland", "Canada", "Singapore",
-    "Norway", "Finland", "Austria", "Poland", "Portugal", "Brazil", "India",
-    "Indonesia", "Malaysia", "Taiwan", "South Korea", "Thailand", "Vietnam",
-}
 
 # Doc trang thai tu chinh dong chu do. Dung \b: 'Unprotected' chua 'protected',
 # con 'Not connected' / 'Disconnected' thi chua 'connected' -- so bang `in` la
@@ -356,9 +345,12 @@ def _collect_countries(inst: Instance, log: Log,
                 break
             # Hai lan cuon lien tiep khong ra ten moi = da toi cuoi danh sach.
             # Mot lan thi chua chac: co man hinh chi co tieu de.
+            # BA nac lien tiep moi dung, khong phai hai: danh sach dai co the
+            # co doan lap lai vi cuon chua lai, va dung som thi cat cut danh
+            # sach ma khong biet -- lan truoc dung o 21 nuoc chinh vi kieu nay.
             empty_rounds = 0 if new else empty_rounds + 1
-            if empty_rounds >= 2:
-                log(f"  hai nac lien tiep khong ra ten moi -> het danh sach")
+            if empty_rounds >= 3:
+                log(f"  ba nac lien tiep khong ra ten moi -> het danh sach")
                 break
             _scroll_list(inst)
 
