@@ -60,6 +60,11 @@ def main() -> int:
                     help="dump man hien tai roi cuon N nac, dump lai moi nac")
     ap.add_argument("--collect", action="store_true",
                     help="chay dung ham gom cua flow (_collect_countries)")
+    ap.add_argument("--max-scrolls", type=int, default=rf.VPN_LIST_MAX_SCROLLS,
+                    help="tran so nac cuon khi --collect (mac dinh %(default)s, "
+                         "moi nac ~3s)")
+    ap.add_argument("--top", action="store_true",
+                    help="cuon ve dau danh sach truoc khi lam gi")
     args = ap.parse_args()
 
     console = LDConsole(args.ldconsole)
@@ -82,9 +87,13 @@ def main() -> int:
     print(f"man hinh: {inst.screen_resolution()}")
     print(f"app dang o truoc: {inst.current_app()!r}")
 
+    if args.top:
+        print("cuon ve dau danh sach...")
+        rf._scroll_to_top(inst)
+
     if args.collect:
         log = Log("dump")
-        names = rf._collect_countries(inst, log)
+        names = rf._collect_countries(inst, log, max_scrolls=args.max_scrolls)
         print(f"\n{'=' * 78}\nGOM DUOC {len(names)} NUOC\n{'=' * 78}")
         for i, n in enumerate(names, 1):
             print(f"  {i:3}. {n:28} (thay o nac cuon {rf._country_step.get(n)})")

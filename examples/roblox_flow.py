@@ -294,7 +294,14 @@ def _scroll_list(inst: Instance, times: int = 1) -> None:
                 pause=VPN_LIST_SETTLE)
 
 
-def _collect_countries(inst: Instance, log: Log) -> list[str]:
+def _scroll_to_top(inst: Instance, sweeps: int = 12) -> None:
+    """Ve dau danh sach. Vuot dai + nhanh, khong can chinh xac tung nac."""
+    inst.scroll(*VPN_LIST_ANCHOR, times=sweeps,
+                dy=-VPN_LIST_SCROLL_DY * 2, pause=0.15)
+
+
+def _collect_countries(inst: Instance, log: Log,
+                       max_scrolls: int = VPN_LIST_MAX_SCROLLS) -> list[str]:
     """Cuon het danh sach, tra ve moi ten nuoc doc duoc (giu thu tu).
 
     Cung ghi lai moi ten can bao nhieu nac cuon moi thay, de lan sau nhay
@@ -305,24 +312,32 @@ def _collect_countries(inst: Instance, log: Log) -> list[str]:
         if _country_cache:
             return _country_cache
 
-        log("gom danh sach nuoc (cuon het mot luot, chi lam mot lan)...")
+        log(f"gom danh sach nuoc: cuon toi da {max_scrolls} nac, "
+            f"moi nac ~3s -- chi lam mot lan cho ca farm")
         names: list[str] = []
         empty_rounds = 0
-        for step in range(VPN_LIST_MAX_SCROLLS):
+        for step in range(max_scrolls):
+            t0 = time.monotonic()
             try:
                 nodes = inst.ui_nodes()
             except Exception as exc:
-                log(f"  doc UI hong o nac {step}: {type(exc).__name__}")
+                log(f"  nac {step}: doc UI hong ({type(exc).__name__}) -- bo qua")
                 nodes = []
             new = [n["text"].strip() for n in nodes
                    if _is_country_row(n) and n["text"].strip() not in _country_step]
             for t in new:
                 _country_step[t] = step
                 names.append(t)
+            # In TUNG NAC: khong co dong nay thi ca phut khong thay gi, nhin y
+            # het nhu treo va khong biet no dang o dau.
+            log(f"  nac {step}: {len(nodes)} node, +{len(new)} nuoc moi "
+                f"(tong {len(names)}) [{time.monotonic() - t0:.1f}s]"
+                + (f" {new[:4]}" if new else ""))
             # Hai lan cuon lien tiep khong ra ten moi = da toi cuoi danh sach.
             # Mot lan thi chua chac: co man hinh chi co tieu de.
             empty_rounds = 0 if new else empty_rounds + 1
             if empty_rounds >= 2:
+                log(f"  hai nac lien tiep khong ra ten moi -> het danh sach")
                 break
             _scroll_list(inst)
 
@@ -355,9 +370,10 @@ def _pick_country(inst: Instance, log: Log) -> None:
     """Chon ngau nhien MOT nuoc trong toan bo danh sach roi bam."""
     names = _collect_countries(inst, log)
     if names:
-        # Cuon ve dau truoc khi di tim: _collect_countries de lai o cuoi danh sach.
-        inst.scroll(*VPN_LIST_ANCHOR, times=len(names) // 2 + 4,
-                    dy=-VPN_LIST_SCROLL_DY, pause=0.3)
+        # Cuon ve dau truoc khi di tim: lan gom truoc de lai o cuoi danh sach.
+        # Vuot dai va nhanh, khong can dung tung nac -- chi can ve toi dau, va
+        # vuot qua dau thi cung khong sao.
+        _scroll_to_top(inst)
         for name in random.sample(names, k=min(3, len(names))):
             if _tap_country(inst, name, log):
                 return
