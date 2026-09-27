@@ -69,6 +69,10 @@ VPN_CONTINUE_BTN = (279, 298) # fallback: nut Continue trong hop thoai (400x500)
 VPN_LIST_ANCHOR = (200, 300)   # diem dat ngon tay de cuon trong danh sach
 VPN_LIST_SCROLL_DY = -180      # am = ngon tay di len = danh sach chay xuong
 VPN_LIST_MAX_SCROLLS = 40      # tran an toan, khong cuon vo han
+# Neu MOT lan dump da ra tu ngan nay ten tro len thi app dung ScrollView voi moi
+# hang dung san trong cay -- lay het mot phat, khoi cuon. Chi khi app dung
+# RecyclerView (chi dung hang dang hien) moi phai cuon.
+VPN_LIST_ENOUGH = 20
 VPN_LIST_SETTLE = 0.8          # giay cho danh sach dung han truoc khi doc
 # Chu tren man danh sach KHONG phai ten nuoc -- loai ra khi gom.
 VPN_LIST_CHROME = {
@@ -333,6 +337,10 @@ def _collect_countries(inst: Instance, log: Log,
             log(f"  nac {step}: {len(nodes)} node, +{len(new)} nuoc moi "
                 f"(tong {len(names)}) [{time.monotonic() - t0:.1f}s]"
                 + (f" {new[:4]}" if new else ""))
+            # Lay duoc ca danh sach ngay tu lan dump dau -> khoi cuon.
+            if step == 0 and len(names) >= VPN_LIST_ENOUGH:
+                log(f"  mot lan dump da ra {len(names)} nuoc -> lay het, khong can cuon")
+                break
             # Hai lan cuon lien tiep khong ra ten moi = da toi cuoi danh sach.
             # Mot lan thi chua chac: co man hinh chi co tieu de.
             empty_rounds = 0 if new else empty_rounds + 1
@@ -370,10 +378,10 @@ def _pick_country(inst: Instance, log: Log) -> None:
     """Chon ngau nhien MOT nuoc trong toan bo danh sach roi bam."""
     names = _collect_countries(inst, log)
     if names:
-        # Cuon ve dau truoc khi di tim: lan gom truoc de lai o cuoi danh sach.
-        # Vuot dai va nhanh, khong can dung tung nac -- chi can ve toi dau, va
-        # vuot qua dau thi cung khong sao.
-        _scroll_to_top(inst)
+        # Chi phai cuon ve dau khi lan gom truoc that su da cuon. Neu ca danh
+        # sach nam san trong cay thi man hinh chua he xe dich.
+        if any(_country_step.get(n, 0) for n in names):
+            _scroll_to_top(inst)
         for name in random.sample(names, k=min(3, len(names))):
             if _tap_country(inst, name, log):
                 return
