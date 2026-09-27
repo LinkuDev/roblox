@@ -300,6 +300,12 @@ def _country_rows(nodes: list[dict]) -> list[tuple[str, tuple[int, int]]]:
     return out
 
 
+def _scroll_list(inst: Instance, times: int = 1) -> None:
+    """Cuon xuong trong danh sach nuoc."""
+    inst.scroll(*VPN_LIST_ANCHOR, times=times, dy=VPN_LIST_SCROLL_DY,
+                pause=VPN_LIST_SETTLE)
+
+
 def _scroll_to_top(inst: Instance, sweeps: int = 12) -> None:
     """Ve dau danh sach. Vuot dai + nhanh, khong can chinh xac tung nac."""
     inst.scroll(*VPN_LIST_ANCHOR, times=sweeps,
