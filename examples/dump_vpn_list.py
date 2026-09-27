@@ -32,20 +32,22 @@ def dump_screen(inst: Instance, title: str) -> list[dict]:
         print(f"  [!] doc UI hong: {type(exc).__name__}: {exc}")
         return []
 
+    rows = dict(rf._country_rows(nodes))
     shown = [n for n in nodes if n["text"].strip() or n["desc"].strip() or n["clickable"]]
     print(f"{len(nodes)} node, {len(shown)} co chu hoac bam duoc\n")
     print(f"  {'NUOC?':6} {'text':28} {'id':26} {'class':22} clk  center")
     print(f"  {'-' * 6} {'-' * 28} {'-' * 26} {'-' * 22} ---  ------")
     for n in shown:
-        ok = rf._is_country_row(n)
+        ok = n["text"].strip() in rows
         print(f"  {'[x]' if ok else '[ ]':6} "
               f"{n['text'].strip()[:28]:28} "
               f"{n['id'].split('/')[-1][:26]:26} "
               f"{n['class'].split('.')[-1][:22]:22} "
               f"{'Y' if n['clickable'] else '.':3}  {n['center']}")
 
-    hits = [n["text"].strip() for n in nodes if rf._is_country_row(n)]
-    print(f"\n  -> bo loc nhan {len(hits)} node la ten nuoc: {hits}")
+    print(f"\n  -> ghep duoc {len(rows)} hang nuoc:")
+    for name, pos in rows.items():
+        print(f"       {name:28} bam tai {pos}")
     return nodes
 
 

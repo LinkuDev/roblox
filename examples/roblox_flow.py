@@ -276,26 +276,39 @@ STORE: AccountStore | None = None   # tao o main(), moi thread dung chung
 # --------------------------------------------------------------------------
 
 
-def _is_country_row(node: dict) -> bool:
-    """Node nay co phai mot hang ten nuoc khong.
+# Moi hang nuoc trong danh sach la mot cum node:
+#     View     (200, 200)  bam duoc   <- khung hang
+#     TextView ( 94, 191)  "Bahamas"  <- ten nuoc, KHONG bam duoc, KHONG co id
+#     TextView (135, 210)  "1 location | > 50 endpoints"
+#     Button   (368, 200)  bam duoc   <- nut sao yeu thich, bam nham la hong
+# Ten nuoc khong co resource-id va khong clickable, nen khong the nhan dien
+# bang thuoc tinh cua rieng no. Dau hieu chac chan la DONG PHU DE ngay duoi.
+_SUBTITLE_RE = re.compile(r"^\d+\s+locations?\s*\|", re.I)
 
-    Khong loc bang danh sach ten cung: ExpressVPN co ca tram nuoc, liet ke tay
-    thi vua thieu vua lac hau. Loc bang dac diem: co chu, bam duoc, khong phai
-    chu cua giao dien, khong phai so.
+
+def _country_rows(nodes: list[dict]) -> list[tuple[str, tuple[int, int]]]:
+    """[(ten nuoc, diem bam)] doc tu cay giao dien.
+
+    Ghep cap theo thu tu: gap dong phu de thi node co chu ngay truoc no chinh
+    la ten nuoc. Cach nay khong phu thuoc id hay clickable -- hai thu ma hang
+    nuoc deu khong co.
+
+    Diem bam la tam cua chinh o chu (x~94), nam trong khung hang va cach xa
+    nut sao o x=368.
     """
-    t = node["text"].strip()
-    if not t or t in VPN_LIST_CHROME:
-        return False
-    if t in VPN_COUNTRIES:
-        return True
-    if not (2 <= len(t) <= 40) or t.replace(".", "").isdigit():
-        return False
-    return node["clickable"] or bool(node["id"])
-
-
-def _scroll_list(inst: Instance, times: int = 1) -> None:
-    inst.scroll(*VPN_LIST_ANCHOR, times=times, dy=VPN_LIST_SCROLL_DY,
-                pause=VPN_LIST_SETTLE)
+    out: list[tuple[str, tuple[int, int]]] = []
+    prev: tuple[str, tuple[int, int]] | None = None
+    for n in nodes:
+        t = n["text"].strip()
+        if not t:
+            continue
+        if _SUBTITLE_RE.match(t):
+            if prev and prev[0] not in VPN_LIST_CHROME:
+                out.append(prev)
+            prev = None
+            continue
+        prev = (t, n["center"])
+    return out
 
 
 def _scroll_to_top(inst: Instance, sweeps: int = 12) -> None:
@@ -327,8 +340,8 @@ def _collect_countries(inst: Instance, log: Log,
             except Exception as exc:
                 log(f"  nac {step}: doc UI hong ({type(exc).__name__}) -- bo qua")
                 nodes = []
-            new = [n["text"].strip() for n in nodes
-                   if _is_country_row(n) and n["text"].strip() not in _country_step]
+            new = [name for name, _ in _country_rows(nodes)
+                   if name not in _country_step]
             for t in new:
                 _country_step[t] = step
                 names.append(t)
@@ -363,11 +376,14 @@ def _tap_country(inst: Instance, name: str, log: Log) -> bool:
     # Nhay xong van phai doc lai de xac nhan: danh sach co the truot lech vai
     # hang. Tim khong thay thi cuon tiep tung nac.
     for extra in range(6):
-        node = inst.find_node(text=name, exact=True)
-        if node:
-            log(f"chon nuoc: {name!r} tai {node['center']} "
+        try:
+            rows = dict(_country_rows(inst.ui_nodes()))
+        except Exception:
+            rows = {}
+        if name in rows:
+            log(f"chon nuoc: {name!r} tai {rows[name]} "
                 f"(nac {hint}{'+' + str(extra) if extra else ''})")
-            inst.tap(*node["center"])
+            inst.tap(*rows[name])
             return True
         _scroll_list(inst)
     log(f"khong tim lai duoc {name!r} sau khi cuon")
