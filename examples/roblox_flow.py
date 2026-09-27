@@ -59,7 +59,32 @@ VPN_COUNTRY_ROWS = [          # fallback: cac hang nuoc
 VPN_DIALOG_TITLE = "Changing Location"
 VPN_DIALOG_TIMEOUT = 12       # giay toi da cho hop thoai hien ra
 VPN_CONTINUE_BTN = (279, 298) # fallback: nut Continue trong hop thoai (400x500)
+# --- Danh sach nuoc: gom TOAN BO roi random tren tap day du ----------------
+# Khong random tren "nhung nuoc dang hien" duoc: man 400x500 chi thay 4-6 hang
+# dau, va ExpressVPN xep danh sach co dinh -> lan nao cung quanh quan may nuoc
+# do. Phai cuon het mot luot de biet co nhung nuoc nao.
+#
+# Danh sach giong het nhau tren moi may ao va khong doi, nen chi gom MOT LAN
+# roi dung chung cho ca farm.
+VPN_LIST_ANCHOR = (200, 300)   # diem dat ngon tay de cuon trong danh sach
+VPN_LIST_SCROLL_DY = -180      # am = ngon tay di len = danh sach chay xuong
+VPN_LIST_MAX_SCROLLS = 40      # tran an toan, khong cuon vo han
+VPN_LIST_SETTLE = 0.8          # giay cho danh sach dung han truoc khi doc
+# Chu tren man danh sach KHONG phai ten nuoc -- loai ra khi gom.
+VPN_LIST_CHROME = {
+    "All Locations", "Recommended", "Recent", "Favorites", "Search",
+    "Smart Location", "VPN Locations", "Back", "Done", "Cancel", "Continue",
+    "Add-ons", "Speed Test", "Help", "Profile", "VPN",
+}
+
+_country_cache: "list[str] | None" = None      # ten nuoc, theo thu tu trong list
+_country_step: "dict[str, int]" = {}           # ten -> so nac cuon de thay no
+_country_lock = threading.Lock()
+
 # Ten nuoc de nhan dien hang trong danh sach qua uiautomator (khop chinh xac).
+# CHI la goi y: node nao trung set nay thi chac chan la nuoc. Node khac van
+# duoc nhan neu no bam duoc va khong nam trong VPN_LIST_CHROME -- neu khong thi
+# chi random duoc trong 31 cai duoi day thay vi ca tram nuoc ExpressVPN co.
 VPN_COUNTRIES = {
     "United States", "United Kingdom", "Japan", "Australia", "Germany", "France",
     "Belgium", "Denmark", "Hong Kong", "Ireland", "Italy", "New Zealand",
@@ -247,6 +272,103 @@ STORE: AccountStore | None = None   # tao o main(), moi thread dung chung
 # --------------------------------------------------------------------------
 
 
+def _is_country_row(node: dict) -> bool:
+    """Node nay co phai mot hang ten nuoc khong.
+
+    Khong loc bang danh sach ten cung: ExpressVPN co ca tram nuoc, liet ke tay
+    thi vua thieu vua lac hau. Loc bang dac diem: co chu, bam duoc, khong phai
+    chu cua giao dien, khong phai so.
+    """
+    t = node["text"].strip()
+    if not t or t in VPN_LIST_CHROME:
+        return False
+    if t in VPN_COUNTRIES:
+        return True
+    if not (2 <= len(t) <= 40) or t.replace(".", "").isdigit():
+        return False
+    return node["clickable"] or bool(node["id"])
+
+
+def _scroll_list(inst: Instance, times: int = 1) -> None:
+    inst.scroll(*VPN_LIST_ANCHOR, times=times, dy=VPN_LIST_SCROLL_DY,
+                pause=VPN_LIST_SETTLE)
+
+
+def _collect_countries(inst: Instance, log: Log) -> list[str]:
+    """Cuon het danh sach, tra ve moi ten nuoc doc duoc (giu thu tu).
+
+    Cung ghi lai moi ten can bao nhieu nac cuon moi thay, de lan sau nhay
+    thang toi do thay vi do lai tu dau.
+    """
+    global _country_cache
+    with _country_lock:
+        if _country_cache:
+            return _country_cache
+
+        log("gom danh sach nuoc (cuon het mot luot, chi lam mot lan)...")
+        names: list[str] = []
+        empty_rounds = 0
+        for step in range(VPN_LIST_MAX_SCROLLS):
+            try:
+                nodes = inst.ui_nodes()
+            except Exception as exc:
+                log(f"  doc UI hong o nac {step}: {type(exc).__name__}")
+                nodes = []
+            new = [n["text"].strip() for n in nodes
+                   if _is_country_row(n) and n["text"].strip() not in _country_step]
+            for t in new:
+                _country_step[t] = step
+                names.append(t)
+            # Hai lan cuon lien tiep khong ra ten moi = da toi cuoi danh sach.
+            # Mot lan thi chua chac: co man hinh chi co tieu de.
+            empty_rounds = 0 if new else empty_rounds + 1
+            if empty_rounds >= 2:
+                break
+            _scroll_list(inst)
+
+        _country_cache = names
+        log(f"gom duoc {len(names)} nuoc: {', '.join(names[:12])}"
+            + (" ..." if len(names) > 12 else ""))
+        return names
+
+
+def _tap_country(inst: Instance, name: str, log: Log) -> bool:
+    """Cuon toi nuoc `name` roi bam. True neu bam duoc."""
+    hint = _country_step.get(name, 0)
+    if hint:
+        _scroll_list(inst, times=hint)      # nhay thang toi cho da biet
+    # Nhay xong van phai doc lai de xac nhan: danh sach co the truot lech vai
+    # hang. Tim khong thay thi cuon tiep tung nac.
+    for extra in range(6):
+        node = inst.find_node(text=name, exact=True)
+        if node:
+            log(f"chon nuoc: {name!r} tai {node['center']} "
+                f"(nac {hint}{'+' + str(extra) if extra else ''})")
+            inst.tap(*node["center"])
+            return True
+        _scroll_list(inst)
+    log(f"khong tim lai duoc {name!r} sau khi cuon")
+    return False
+
+
+def _pick_country(inst: Instance, log: Log) -> None:
+    """Chon ngau nhien MOT nuoc trong toan bo danh sach roi bam."""
+    names = _collect_countries(inst, log)
+    if names:
+        # Cuon ve dau truoc khi di tim: _collect_countries de lai o cuoi danh sach.
+        inst.scroll(*VPN_LIST_ANCHOR, times=len(names) // 2 + 4,
+                    dy=-VPN_LIST_SCROLL_DY, pause=0.3)
+        for name in random.sample(names, k=min(3, len(names))):
+            if _tap_country(inst, name, log):
+                return
+            log(f"thu nuoc khac thay cho {name!r}")
+
+    # Khong doc duoc gi -> bam mu mot hang. Kem chac chan han, nen noi ro.
+    x, y = random.choice(VPN_COUNTRY_ROWS)
+    log(f"khong doc duoc danh sach nuoc (widget) -> bam toa do random ({x}, {y})")
+    inst.tap(x, y)
+
+
 def connect_vpn(inst: Instance, log: Log) -> None:
     """Bat VPN neu chua bat.
 
@@ -287,20 +409,8 @@ def connect_vpn(inst: Instance, log: Log) -> None:
         inst.tap(*VPN_ALL_TAB)
     pause(VPN_STEP_WAIT, log, "cho danh sach nuoc")
 
-    # Chon random 1 nuoc dang hien -- lay toa do THAT tu widget tree.
-    try:
-        nodes = inst.ui_nodes()
-    except Exception:
-        nodes = []
-    present = [n for n in nodes if n["text"].strip() in VPN_COUNTRIES]
-    if present:
-        pick = random.choice(present)
-        log(f"chon nuoc: {pick['text']!r} tai {pick['center']} (widget)")
-        inst.tap(*pick["center"])
-    else:
-        x, y = random.choice(VPN_COUNTRY_ROWS)
-        log(f"khong doc duoc danh sach nuoc (widget) -> bam toa do random ({x}, {y})")
-        inst.tap(x, y)
+    # Random tren TOAN BO danh sach, khong chi may nuoc dang hien tren man hinh.
+    _pick_country(inst, log)
 
     # Xac nhan hop thoai "Changing Location?" neu no hien ra. Khong bam mu theo
     # toa do nhu cac buoc tren: hop thoai nay co the KHONG xuat hien (VPN dang
