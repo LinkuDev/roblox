@@ -66,29 +66,19 @@ VPN_CONTINUE_BTN = (279, 298) # fallback: nut Continue trong hop thoai (400x500)
 #
 # Danh sach giong het nhau tren moi may ao va khong doi, nen chi gom MOT LAN
 # roi dung chung cho ca farm.
-VPN_LIST_ANCHOR = (200, 450)   # diem dat ngon tay de cuon. Dat THAP de ca cu vuot
-                               # (450 -> 450+dy) nam TRONG list (~200-490), khong
-                               # loi len tab/header -> cuon deu, khong ket giua chung.
-VPN_LIST_SCROLL_DY = -220      # am = ngon tay di len = danh sach chay xuong.
-                               # 6 hang hien ~330px; cuon 220px -> chua lai ~2
-                               # hang moi lan, khong truot ai. To hon (280) bat
-                               # dau nhay qua nuoc.
-# Cuon "vo han": dung khi khong con nuoc moi (empty_rounds ben duoi). Con day chi
-# la tran an toan de khong loop mai neu co su co.
-VPN_LIST_MAX_SCROLLS = 500     # tran an toan; thuc te dung theo empty_rounds
-# Neu MOT lan dump da ra tu ngan nay ten tro len thi app dung ScrollView voi moi
-# hang dung san trong cay -- lay het mot phat, khoi cuon. Chi khi app dung
-# RecyclerView (chi dung hang dang hien) moi phai cuon.
+VPN_LIST_ANCHOR = (200, 300)   # diem dat ngon tay de cuon trong danh sach
+VPN_LIST_SCROLL_DY = -280      # am = ngon tay di len = danh sach chay xuong
+VPN_LIST_MAX_SCROLLS = 60      # tran an toan cho _collect_countries (dump)
 VPN_LIST_ENOUGH = 20
-VPN_LIST_SETTLE = 0.5          # giay cho danh sach dung han truoc khi doc (~1s/nac)
-# Thoi luong cu vuot. Nho = vuot dut khoat -> Android nhan ra cuon nhanh, it hien
-# highlight "dí" tren hang. To qua thi ngon tay o lau tren hang -> nhap nhay press.
-VPN_LIST_SCROLL_MS = 0.12
+VPN_LIST_SETTLE = 0.8          # giay cho danh sach dung han truoc khi doc
+# Random country trong flow: cuon ngau nhien 0..N nac roi boc dai 1 nuoc dang hien.
+VPN_RANDOM_MAX_SCROLLS = 32
 # Chu tren man danh sach KHONG phai ten nuoc -- loai ra khi gom.
 VPN_LIST_CHROME = {
     "All Locations", "Recommended", "Recent", "Favorites", "Search",
     "Smart Location", "VPN Locations", "Back", "Done", "Cancel", "Continue",
     "Add-ons", "Speed Test", "Help", "Profile", "VPN",
+    "All Regions", "Sort: Endpoints", "ALL LOCATIONS", "RECOMMENDED",
 }
 
 _country_cache: "list[str] | None" = None      # ten nuoc, theo thu tu trong list
@@ -312,13 +302,13 @@ def _country_rows(nodes: list[dict]) -> list[tuple[str, tuple[int, int]]]:
 def _scroll_list(inst: Instance, times: int = 1) -> None:
     """Cuon xuong trong danh sach nuoc."""
     inst.scroll(*VPN_LIST_ANCHOR, times=times, dy=VPN_LIST_SCROLL_DY,
-                duration=VPN_LIST_SCROLL_MS, pause=VPN_LIST_SETTLE)
+                pause=VPN_LIST_SETTLE)
 
 
 def _scroll_to_top(inst: Instance, sweeps: int = 12) -> None:
-    """Ve dau danh sach. Vuot xuong (list chay len), toa do NAM TRONG list
-    (230 -> 470) de khong loi ra ngoai man."""
-    inst.scroll(200, 230, times=sweeps, dy=240, pause=0.15)
+    """Ve dau danh sach. Vuot dai + nhanh, khong can chinh xac tung nac."""
+    inst.scroll(*VPN_LIST_ANCHOR, times=sweeps,
+                dy=-VPN_LIST_SCROLL_DY * 2, pause=0.15)
 
 
 def _collect_countries(inst: Instance, log: Log,
@@ -398,21 +388,31 @@ def _tap_country(inst: Instance, name: str, log: Log) -> bool:
 
 
 def _pick_country(inst: Instance, log: Log) -> None:
-    """Chon ngau nhien MOT nuoc trong toan bo danh sach roi bam."""
-    names = _collect_countries(inst, log)
-    if names:
-        # Chi phai cuon ve dau khi lan gom truoc that su da cuon. Neu ca danh
-        # sach nam san trong cay thi man hinh chua he xe dich.
-        if any(_country_step.get(n, 0) for n in names):
-            _scroll_to_top(inst)
-        for name in random.sample(names, k=min(3, len(names))):
-            if _tap_country(inst, name, log):
-                return
-            log(f"thu nuoc khac thay cho {name!r}")
+    """Random: cuon ngau nhien 0..N nac roi boc dai 1 nuoc DANG HIEN ra bam.
+
+    Don gian han gom ca danh sach: man All Locations mo moi lan la o dau list,
+    nen cuon 0..32 nac dua ta toi mot cho ngau nhien, roi lay bat ky nuoc nao
+    dang thay. Khong can biet truoc co bao nhieu nuoc.
+    """
+    n = random.randint(0, VPN_RANDOM_MAX_SCROLLS)
+    if n:
+        _scroll_list(inst, times=n)
+    log(f"random: cuon {n} nac")
+
+    try:
+        rows = _country_rows(inst.ui_nodes())
+    except Exception:
+        rows = []
+    rows = [(name, pos) for name, pos in rows if name not in VPN_LIST_CHROME]
+    if rows:
+        name, pos = random.choice(rows)
+        log(f"chon nuoc: {name!r} tai {pos}")
+        inst.tap(*pos)
+        return
 
     # Khong doc duoc gi -> bam mu mot hang. Kem chac chan han, nen noi ro.
     x, y = random.choice(VPN_COUNTRY_ROWS)
-    log(f"khong doc duoc danh sach nuoc (widget) -> bam toa do random ({x}, {y})")
+    log(f"khong doc duoc nuoc nao (widget) -> bam toa do random ({x}, {y})")
     inst.tap(x, y)
 
 
