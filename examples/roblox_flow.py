@@ -72,7 +72,8 @@ VPN_LIST_MAX_SCROLLS = 60      # tran an toan cho _collect_countries (dump)
 VPN_LIST_ENOUGH = 20
 VPN_LIST_SETTLE = 0.8          # giay cho danh sach dung han truoc khi doc
 # Random country trong flow: cuon ngau nhien 0..N nac roi boc dai 1 nuoc dang hien.
-VPN_RANDOM_MAX_SCROLLS = 32
+# 14 = so nac cham toi cuoi danh sach (Vietnam) do dump --collect thay 80 nuoc.
+VPN_RANDOM_MAX_SCROLLS = 14
 # Chu tren man danh sach KHONG phai ten nuoc -- loai ra khi gom.
 VPN_LIST_CHROME = {
     "All Locations", "Recommended", "Recent", "Favorites", "Search",
