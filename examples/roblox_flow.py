@@ -67,7 +67,10 @@ VPN_CONTINUE_BTN = (279, 298) # fallback: nut Continue trong hop thoai (400x500)
 # Danh sach giong het nhau tren moi may ao va khong doi, nen chi gom MOT LAN
 # roi dung chung cho ca farm.
 VPN_LIST_ANCHOR = (200, 300)   # diem dat ngon tay de cuon trong danh sach
-VPN_LIST_SCROLL_DY = -280      # am = ngon tay di len = danh sach chay xuong
+VPN_LIST_SCROLL_DY = -150      # am = ngon tay di len = danh sach chay xuong.
+                               # Nho hon 1 man (~6 hang ~330px) de CHONG LAP ~3
+                               # hang moi lan -> khong truot mat nuoc nao. To qua
+                               # (vd -280) la nhay ~5 hang, so nuoc bi bo qua.
 # 6 hang hien ra ~330px; cuon 280px de van chua lai ~1 hang, khong nhay qua ai.
 VPN_LIST_MAX_SCROLLS = 60      # tran an toan, khong cuon vo han
 # Neu MOT lan dump da ra tu ngan nay ten tro len thi app dung ScrollView voi moi
