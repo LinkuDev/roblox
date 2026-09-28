@@ -267,11 +267,17 @@ STORE: AccountStore | None = None   # tao o main(), moi thread dung chung
 # Moi hang nuoc trong danh sach la mot cum node:
 #     View     (200, 200)  bam duoc   <- khung hang
 #     TextView ( 94, 191)  "Bahamas"  <- ten nuoc, KHONG bam duoc, KHONG co id
-#     TextView (135, 210)  "1 location | > 50 endpoints"
+#     TextView (135, 210)  "63 locations | > 3700 endpoints"   (nuoc lon)
+#     TextView (135, 210)  "1 location"                        (nuoc nho!)
 #     Button   (368, 200)  bam duoc   <- nut sao yeu thich, bam nham la hong
 # Ten nuoc khong co resource-id va khong clickable, nen khong the nhan dien
 # bang thuoc tinh cua rieng no. Dau hieu chac chan la DONG PHU DE ngay duoi.
-_SUBTITLE_RE = re.compile(r"^\d+\s+locations?\s*\|", re.I)
+#
+# QUAN TRONG: nuoc nho chi co "1 location", KHONG kem "| > N endpoints".
+# Bat buoc dau "|" thi bo sot ca duoi danh sach (Croatia, Cuba, Cyprus,
+# Czechia, ... deu "1 location") -> gom xong tuong het som o ~31 nuoc.
+# Nen phan "| > N endpoints" phai la TUY CHON.
+_SUBTITLE_RE = re.compile(r"^\d+\s+locations?\b", re.I)
 
 
 def _country_rows(nodes: list[dict]) -> list[tuple[str, tuple[int, int]]]:
