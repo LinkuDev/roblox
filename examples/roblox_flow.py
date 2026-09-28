@@ -313,9 +313,9 @@ def _scroll_list(inst: Instance, times: int = 1) -> None:
 
 
 def _scroll_to_top(inst: Instance, sweeps: int = 12) -> None:
-    """Ve dau danh sach. Vuot dai + nhanh, khong can chinh xac tung nac."""
-    inst.scroll(*VPN_LIST_ANCHOR, times=sweeps,
-                dy=-VPN_LIST_SCROLL_DY * 2, pause=0.15)
+    """Ve dau danh sach. Vuot xuong (list chay len), toa do NAM TRONG list
+    (230 -> 470) de khong loi ra ngoai man."""
+    inst.scroll(200, 230, times=sweeps, dy=240, pause=0.15)
 
 
 def _collect_countries(inst: Instance, log: Log,
