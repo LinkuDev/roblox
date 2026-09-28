@@ -66,7 +66,9 @@ VPN_CONTINUE_BTN = (279, 298) # fallback: nut Continue trong hop thoai (400x500)
 #
 # Danh sach giong het nhau tren moi may ao va khong doi, nen chi gom MOT LAN
 # roi dung chung cho ca farm.
-VPN_LIST_ANCHOR = (200, 300)   # diem dat ngon tay de cuon trong danh sach
+VPN_LIST_ANCHOR = (200, 450)   # diem dat ngon tay de cuon. Dat THAP de ca cu vuot
+                               # (450 -> 450+dy) nam TRONG list (~200-490), khong
+                               # loi len tab/header -> cuon deu, khong ket giua chung.
 VPN_LIST_SCROLL_DY = -220      # am = ngon tay di len = danh sach chay xuong.
                                # 6 hang hien ~330px; cuon 220px -> chua lai ~2
                                # hang moi lan, khong truot ai. To hon (280) bat
