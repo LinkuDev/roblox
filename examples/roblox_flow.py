@@ -67,17 +67,18 @@ VPN_CONTINUE_BTN = (279, 298) # fallback: nut Continue trong hop thoai (400x500)
 # Danh sach giong het nhau tren moi may ao va khong doi, nen chi gom MOT LAN
 # roi dung chung cho ca farm.
 VPN_LIST_ANCHOR = (200, 300)   # diem dat ngon tay de cuon trong danh sach
-VPN_LIST_SCROLL_DY = -150      # am = ngon tay di len = danh sach chay xuong.
-                               # Nho hon 1 man (~6 hang ~330px) de CHONG LAP ~3
-                               # hang moi lan -> khong truot mat nuoc nao. To qua
-                               # (vd -280) la nhay ~5 hang, so nuoc bi bo qua.
-# 6 hang hien ra ~330px; cuon 280px de van chua lai ~1 hang, khong nhay qua ai.
-VPN_LIST_MAX_SCROLLS = 60      # tran an toan, khong cuon vo han
+VPN_LIST_SCROLL_DY = -220      # am = ngon tay di len = danh sach chay xuong.
+                               # 6 hang hien ~330px; cuon 220px -> chua lai ~2
+                               # hang moi lan, khong truot ai. To hon (280) bat
+                               # dau nhay qua nuoc.
+# Cuon "vo han": dung khi khong con nuoc moi (empty_rounds ben duoi). Con day chi
+# la tran an toan de khong loop mai neu co su co.
+VPN_LIST_MAX_SCROLLS = 500     # tran an toan; thuc te dung theo empty_rounds
 # Neu MOT lan dump da ra tu ngan nay ten tro len thi app dung ScrollView voi moi
 # hang dung san trong cay -- lay het mot phat, khoi cuon. Chi khi app dung
 # RecyclerView (chi dung hang dang hien) moi phai cuon.
 VPN_LIST_ENOUGH = 20
-VPN_LIST_SETTLE = 0.8          # giay cho danh sach dung han truoc khi doc
+VPN_LIST_SETTLE = 0.5          # giay cho danh sach dung han truoc khi doc (~1s/nac)
 # Chu tren man danh sach KHONG phai ten nuoc -- loai ra khi gom.
 VPN_LIST_CHROME = {
     "All Locations", "Recommended", "Recent", "Favorites", "Search",
