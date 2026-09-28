@@ -329,7 +329,7 @@ def _collect_countries(inst: Instance, log: Log,
             return _country_cache
 
         log(f"gom danh sach nuoc: cuon toi da {max_scrolls} nac, "
-            f"moi nac ~3s -- chi lam mot lan cho ca farm")
+            f"moi nac ~1s -- chi lam mot lan cho ca farm")
         names: list[str] = []
         empty_rounds = 0
         for step in range(max_scrolls):

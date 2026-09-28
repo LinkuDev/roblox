@@ -64,7 +64,7 @@ def main() -> int:
                     help="chay dung ham gom cua flow (_collect_countries)")
     ap.add_argument("--max-scrolls", type=int, default=rf.VPN_LIST_MAX_SCROLLS,
                     help="tran so nac cuon khi --collect (mac dinh %(default)s, "
-                         "moi nac ~3s)")
+                         "moi nac ~1s)")
     ap.add_argument("--top", action="store_true",
                     help="cuon ve dau danh sach truoc khi lam gi")
     args = ap.parse_args()
