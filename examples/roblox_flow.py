@@ -81,6 +81,9 @@ VPN_LIST_MAX_SCROLLS = 500     # tran an toan; thuc te dung theo empty_rounds
 # RecyclerView (chi dung hang dang hien) moi phai cuon.
 VPN_LIST_ENOUGH = 20
 VPN_LIST_SETTLE = 0.5          # giay cho danh sach dung han truoc khi doc (~1s/nac)
+# Thoi luong cu vuot. Nho = vuot dut khoat -> Android nhan ra cuon nhanh, it hien
+# highlight "dí" tren hang. To qua thi ngon tay o lau tren hang -> nhap nhay press.
+VPN_LIST_SCROLL_MS = 0.12
 # Chu tren man danh sach KHONG phai ten nuoc -- loai ra khi gom.
 VPN_LIST_CHROME = {
     "All Locations", "Recommended", "Recent", "Favorites", "Search",
@@ -309,7 +312,7 @@ def _country_rows(nodes: list[dict]) -> list[tuple[str, tuple[int, int]]]:
 def _scroll_list(inst: Instance, times: int = 1) -> None:
     """Cuon xuong trong danh sach nuoc."""
     inst.scroll(*VPN_LIST_ANCHOR, times=times, dy=VPN_LIST_SCROLL_DY,
-                pause=VPN_LIST_SETTLE)
+                duration=VPN_LIST_SCROLL_MS, pause=VPN_LIST_SETTLE)
 
 
 def _scroll_to_top(inst: Instance, sweeps: int = 12) -> None:
