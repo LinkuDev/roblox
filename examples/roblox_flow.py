@@ -145,13 +145,27 @@ AFTER_SUBMIT = 16
 # --- Man dang ky sau khi qua xac minh tuoi -------------------------------
 # Cung he toa do 400x500 nhu tren.
 STEP_PAUSE = 4               # giay giua moi thao tac
-# Do lai tu anh chup man "Create Account" moi: Roblox gop o Birthday vao chinh
-# man nay, nen moi thu bi day XUONG. Cot x khong doi (gender van 113/288), chi
-# cot y lech -- do la dau hieu bo cuc ngang giu nguyen, chi chen them mot hang.
-USERNAME_FIELD = (201, 286)  # truoc: y=266
-GENDER_FEMALE = (113, 370)   # icon ben trai,  truoc: y=290
-GENDER_MALE = (288, 370)     # icon ben phai,  truoc: y=290
-SIGNUP_CONTINUE = (200, 461) # truoc: y=381
+# Man "Create Account" DOI BO CUC sau moi thao tac, va day la cho de sai nhat.
+# Ba trang thai, do tu anh chup that o 400x500:
+#
+#   A. vua vao man                 B. sau khi go username        C. sau khi chon gender
+#      Birthday  (200, 214)           (Birthday bi ban phim         Birthday  (200, 131)
+#      Username  (201, 286)            day len, bien mat)           Username  (201, 202)
+#      Gender    (113/288, 370)       Username  (201, 162)          Gender    (113/288, 290)
+#      Continue  (200, 461)           3 dong kiem tra ten           Continue  (200, 379)
+#                                     Gender    (113/288, 308)
+#                                     Continue  (200, 402)
+#
+# Flow di A -> B -> C, nen moi hang so phai lay o dung trang thai no duoc bam:
+#   bam Username   luc dang o A
+#   bam Gender     luc dang o B  (vua go xong, ban phim con mo)
+#   bam Continue   luc dang o C  (chon gender xong, ban phim dong lai)
+#
+# Cot x khong doi qua ca ba trang thai -- chi co cot y chay.
+USERNAME_FIELD = (201, 286)  # trang thai A
+GENDER_FEMALE = (113, 308)   # trang thai B, icon ben trai
+GENDER_MALE = (288, 308)     # trang thai B, icon ben phai
+SIGNUP_CONTINUE = (200, 379) # trang thai C
 # Sau khi bam Continue (gender): doi them roi SPAM bam (giong login POST_LOGIN_TAP).
 # Hai moc cho tach rieng: cho TRUOC spam phai du dai cho man hinh ve xong, neu
 # khong thi ca 10 cu bam roi vao khoang khong. Cho SAU spam chi de man hinh kip
