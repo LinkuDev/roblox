@@ -118,9 +118,9 @@ CONTINUE_BTN = (201, 322)    # nut Continue cua "Free item with an age check"
 AFTER_CONTINUE = 7           # giay cho banh xe chon ngay hien ra
 
 WHEELS = {                   # ba banh xe chon ngay sinh
-    "thang": (107, 244),
-    "ngay":  (217, 244),
-    "nam":   (313, 244),
+    "thang": (107, 222),     # truoc: y=244 (nam dung vach duoi dong dang chon)
+    "ngay":  (217, 222),
+    "nam":   (313, 222),
 }
 # Pixel moi nac, co dau: duong = ngon tay di XUONG. Thang va ngay nguoc chieu
 # nam -- khong suy ra duoc tu ly thuyet, phai chay roi nhin.
@@ -136,7 +136,8 @@ SCROLLS = {                  # so nac ngau nhien cho tung banh xe
     "nam":   (15, 20),
 }
 AFTER_WHEELS = 6             # giay cho sau khi cuon xong
-SUBMIT_BTN = (197, 394)      # nut xac nhan duoi man chon ngay sinh
+SUBMIT_BTN = (200, 369)      # nut "Confirm Birthday". truoc: (197, 394) -- nam
+                             # duoi mep nut (y=388), bam truot -> bang khong dong
 # Cho man dang ky ve XONG sau khi xac nhan ngay sinh. Truoc day khong co buoc
 # cho nao o day: bam xac nhan xong la bam ngay o username, trong khi man hinh
 # con dang chuyen -> cu bam roi vao khoang khong.
