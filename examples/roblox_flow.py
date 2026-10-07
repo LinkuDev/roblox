@@ -197,11 +197,11 @@ AFTER_HOLD = 20               # doi 20 giay sau lan giu cuoi, roi moi nhap mat k
 
 # --- Man "Create Account" / tao mat khau ---------------------------------
 # Man nay tu focus san vao o mat khau -> go thang, khong can bam truoc.
-# Nut Done. Toa do UOC LUONG tu anh chup, chua do tren may that -- xem chu
-# thich trong flow(). Nut cao ~40px nen lech 10-15px van trung.
-PASSWORD_FIELD = (200, 242)  # o nhap mat khau (do tu anh 400x500)
+# Do tu anh chup that 400x500, luc ban phim DONG:
+#   o Password x 26..371, y 247..280   nut Done x 26..371, y 312..355
+PASSWORD_FIELD = (200, 264)  # truoc: y=242 -- roi vao khe giua nhan va o nhap
 PASSWORD_FOCUS_WAIT = 2      # doi 2s sau khi bam o password truoc khi go
-DONE_BTN = (200, 370)
+DONE_BTN = (200, 333)        # truoc: y=370 -- roi vao khe giua Done va dong "OR"
 
 # Nhan chung cho MOI moc cho ben duoi (--slow). May yeu hoac chay nhieu may ao
 # thi moi thu deu cham di theo cung mot ty le, khong can sua tung hang so.
