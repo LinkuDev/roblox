@@ -145,10 +145,13 @@ AFTER_SUBMIT = 16
 # --- Man dang ky sau khi qua xac minh tuoi -------------------------------
 # Cung he toa do 400x500 nhu tren.
 STEP_PAUSE = 4               # giay giua moi thao tac
-USERNAME_FIELD = (201, 266)
-GENDER_FEMALE = (113, 290)   # icon ben trai
-GENDER_MALE = (288, 290)     # icon ben phai
-SIGNUP_CONTINUE = (200, 381)
+# Do lai tu anh chup man "Create Account" moi: Roblox gop o Birthday vao chinh
+# man nay, nen moi thu bi day XUONG. Cot x khong doi (gender van 113/288), chi
+# cot y lech -- do la dau hieu bo cuc ngang giu nguyen, chi chen them mot hang.
+USERNAME_FIELD = (201, 286)  # truoc: y=266
+GENDER_FEMALE = (113, 370)   # icon ben trai,  truoc: y=290
+GENDER_MALE = (288, 370)     # icon ben phai,  truoc: y=290
+SIGNUP_CONTINUE = (200, 461) # truoc: y=381
 # Sau khi bam Continue (gender): doi them roi SPAM bam (giong login POST_LOGIN_TAP).
 # Hai moc cho tach rieng: cho TRUOC spam phai du dai cho man hinh ve xong, neu
 # khong thi ca 10 cu bam roi vao khoang khong. Cho SAU spam chi de man hinh kip
