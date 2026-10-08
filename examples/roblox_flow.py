@@ -138,6 +138,7 @@ SCROLLS = {                  # so nac ngau nhien cho tung banh xe
 AFTER_WHEELS = 6             # giay cho sau khi cuon xong
 SUBMIT_BTN = (200, 369)      # nut "Confirm Birthday". truoc: (197, 394) -- nam
                              # duoi mep nut (y=388), bam truot -> bang khong dong
+SUBMIT_BTN_2 = (200, 395)   # bam lai lan 2 cho chac chan
 # Cho man dang ky ve XONG sau khi xac nhan ngay sinh. Truoc day khong co buoc
 # cho nao o day: bam xac nhan xong la bam ngay o username, trong khi man hinh
 # con dang chuyen -> cu bam roi vao khoang khong.
@@ -591,6 +592,9 @@ def one_round(inst: Instance, log: Log) -> str | None:
     pause(AFTER_WHEELS, log, "sau khi cuon xong")
     log(f"bam xac nhan tai {SUBMIT_BTN}")
     inst.tap(*SUBMIT_BTN)
+    time.sleep(1)
+    log(f"bam lai xac nhan tai {SUBMIT_BTN_2} (chac chan)")
+    inst.tap(*SUBMIT_BTN_2)
     pause(AFTER_SUBMIT, log, "cho man dang ky ve xong")
 
     lap("xong man xac minh tuoi")
