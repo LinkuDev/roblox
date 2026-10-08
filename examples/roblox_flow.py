@@ -114,8 +114,7 @@ CHROME = (40, 90)            # vien + tieu de + cot cong cu, chi dung khi do hut
 # --- Man xac minh tuoi sau khi Roblox mo ---------------------------------
 # Toa do pixel, dung cho man hinh 400x500. Doi do phan giai la phai do lai het.
 ROBLOX_SETTLE = 20           # giay cho Roblox ve xong truoc khi bam
-CONTINUE_BTN = (200, 323)    # Create Account khi co Terms/Privacy (y nho hon)
-CONTINUE_BTN_2 = (200, 383)  # Create Account khi khong co Terms/Privacy
+CONTINUE_BTN = (200, 323)    # Create Account
 AFTER_CONTINUE = 7           # giay cho banh xe chon ngay hien ra
 
 WHEELS = {                   # ba banh xe chon ngay sinh
@@ -580,9 +579,6 @@ def one_round(inst: Instance, log: Log) -> str | None:
 
     log(f"bam Continue tai {CONTINUE_BTN}")
     inst.tap(*CONTINUE_BTN)
-    time.sleep(1.5)
-    log(f"bam lai Continue tai {CONTINUE_BTN_2} (chac chan)")
-    inst.tap(*CONTINUE_BTN_2)
     pause(AFTER_CONTINUE, log, "cho banh xe chon ngay hien ra")
 
     # Moi may mot ngay sinh khac nhau: 4 tai khoan cung ngay sinh la mot dau
