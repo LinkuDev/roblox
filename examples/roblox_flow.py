@@ -204,13 +204,13 @@ AFTER_HOLD = 20               # doi 20 giay sau lan giu cuoi, roi moi nhap mat k
 # Go xong o con focus -> hint con hien. Cu bam Done dau co the chi lam o mat
 # focus -> hint AN, Done nhay len cho cu. Nen bam HAI lan, moi lan theo mot
 # trang thai.
-PASSWORD_FIELD = (200, 264)  # truoc: y=242 -- roi vao khe giua nhan va o nhap
+PASSWORD_FIELD = (200, 228)  # truoc: y=242 -- roi vao khe giua nhan va o nhap
 PASSWORD_FOCUS_WAIT = 2      # doi 2s sau khi bam o password truoc khi go
 # Lan 1, con hint. Khong lay tam nut (393): neu hint lo an som thi 393 chi
 # cach nut "Create a passkey" (y 399..445) 6px. 385 van trong Done (371..416)
 # ma cach passkey 14px, an som thi chi roi vao chu "OR".
-DONE_BTN_HINT = (200, 385)
-DONE_BTN = (200, 333)        # lan 2, hint da an. truoc: y=370
+DONE_BTN_HINT = (200, 350)
+DONE_BTN = (200, 308)        # lan 2, hint da an. truoc: y=370
 
 # Nhan chung cho MOI moc cho ben duoi (--slow). May yeu hoac chay nhieu may ao
 # thi moi thu deu cham di theo cung mot ty le, khong can sua tung hang so.
@@ -677,12 +677,14 @@ def one_round(inst: Instance, log: Log) -> str | None:
     inst.text(acc.password)
     pause(STEP_PAUSE)
 
-    log(f"bam Done tai {DONE_BTN_HINT} (con 3 dong hint)")
-    inst.tap(*DONE_BTN_HINT)
-    pause(STEP_PAUSE)
     log(f"bam Done lan 2 tai {DONE_BTN} (hint da an)")
     inst.tap(*DONE_BTN)
     pause(STEP_PAUSE)
+
+    log(f"bam Done tai {DONE_BTN_HINT} (con 3 dong hint)")
+    inst.tap(*DONE_BTN_HINT)
+    pause(STEP_PAUSE)
+
 
     # "submitted" = da bam het cac nut, KHONG phai "tao tai khoan thanh cong".
     # Chua co buoc nao doc man hinh de xac nhan Roblox chap nhan.
