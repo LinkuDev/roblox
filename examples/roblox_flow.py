@@ -164,10 +164,10 @@ STEP_PAUSE = 4               # giay giua moi thao tac
 #   bam Continue   luc dang o C  (chon gender xong, ban phim dong lai)
 #
 # Cot x khong doi qua ca ba trang thai -- chi co cot y chay.
-USERNAME_FIELD = (200, 275)  # trang thai A
-GENDER_FEMALE = (109, 307)   # trang thai B, icon ben trai
-GENDER_MALE = (285, 307)     # trang thai B, icon ben phai
-SIGNUP_CONTINUE = (200, 385) # trang thai C
+USERNAME_FIELD = (200, 245)  # trang thai A
+GENDER_FEMALE = (109, 277)   # trang thai B, icon ben trai
+GENDER_MALE = (285, 277)     # trang thai B, icon ben phai
+SIGNUP_CONTINUE = (200, 355) # trang thai C
 # Sau khi bam Continue (gender): doi them roi SPAM bam (giong login POST_LOGIN_TAP).
 # Hai moc cho tach rieng: cho TRUOC spam phai du dai cho man hinh ve xong, neu
 # khong thi ca 10 cu bam roi vao khoang khong. Cho SAU spam chi de man hinh kip
