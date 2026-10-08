@@ -114,8 +114,8 @@ CHROME = (40, 90)            # vien + tieu de + cot cong cu, chi dung khi do hut
 # --- Man xac minh tuoi sau khi Roblox mo ---------------------------------
 # Toa do pixel, dung cho man hinh 400x500. Doi do phan giai la phai do lai het.
 ROBLOX_SETTLE = 20           # giay cho Roblox ve xong truoc khi bam
-CONTINUE_BTN = (201, 365)    # Create Account khi co Terms/Privacy (y nho hon)
-CONTINUE_BTN_2 = (201, 375)  # Create Account khi khong co Terms/Privacy
+CONTINUE_BTN = (200, 323)    # Create Account khi co Terms/Privacy (y nho hon)
+CONTINUE_BTN_2 = (200, 383)  # Create Account khi khong co Terms/Privacy
 AFTER_CONTINUE = 7           # giay cho banh xe chon ngay hien ra
 
 WHEELS = {                   # ba banh xe chon ngay sinh
@@ -139,7 +139,7 @@ SCROLLS = {                  # so nac ngau nhien cho tung banh xe
 AFTER_WHEELS = 6             # giay cho sau khi cuon xong
 SUBMIT_BTN = (200, 369)      # nut "Confirm Birthday". truoc: (197, 394) -- nam
                              # duoi mep nut (y=388), bam truot -> bang khong dong
-SUBMIT_BTN_2 = (200, 395)   # bam lai lan 2 cho chac chan
+SUBMIT_BTN_2 = (200, 385)   # bam lai lan 2 cho chac chan
 # Cho man dang ky ve XONG sau khi xac nhan ngay sinh. Truoc day khong co buoc
 # cho nao o day: bam xac nhan xong la bam ngay o username, trong khi man hinh
 # con dang chuyen -> cu bam roi vao khoang khong.
