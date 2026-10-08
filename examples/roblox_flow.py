@@ -210,7 +210,7 @@ PASSWORD_FOCUS_WAIT = 2      # doi 2s sau khi bam o password truoc khi go
 # cach nut "Create a passkey" (y 399..445) 6px. 385 van trong Done (371..416)
 # ma cach passkey 14px, an som thi chi roi vao chu "OR".
 DONE_BTN_HINT = (200, 350)
-DONE_BTN = (200, 308)        # lan 2, hint da an. truoc: y=370
+DONE_BTN = (200, 315)        # lan 2, hint da an. truoc: y=370
 
 # Nhan chung cho MOI moc cho ben duoi (--slow). May yeu hoac chay nhieu may ao
 # thi moi thu deu cham di theo cung mot ty le, khong can sua tung hang so.
