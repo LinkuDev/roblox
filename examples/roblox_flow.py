@@ -211,6 +211,10 @@ PASSWORD_FOCUS_WAIT = 2      # doi 2s sau khi bam o password truoc khi go
 # ma cach passkey 14px, an som thi chi roi vao chu "OR".
 DONE_BTN_HINT = (200, 350)
 DONE_BTN = (200, 315)        # lan 2, hint da an. truoc: y=370
+# Chup man may ao ngay TRUOC khi bam o password, de biet luc do man hinh dang
+# la gi. Anh la dung khung hinh 400x500 cua may ao -> do toa do thang tren anh.
+# Thu muc nam canh accounts.db (chay exe thi la canh file exe). "" = tat.
+DEBUG_SHOT_DIR = "debug_shots"
 
 # Nhan chung cho MOI moc cho ben duoi (--slow). May yeu hoac chay nhieu may ao
 # thi moi thu deu cham di theo cung mot ty le, khong can sua tung hang so.
@@ -525,6 +529,24 @@ def connect_vpn(inst: Instance, log: Log) -> None:
     log("VPN da len (tun co IP)")
 
 
+def _debug_shot(inst: Instance, log: Log, tag: str) -> None:
+    """Luu anh man hinh may ao vao DEBUG_SHOT_DIR. Hong thi chi ghi log."""
+    if not DEBUG_SHOT_DIR:
+        return
+    try:
+        out = Path(DEBUG_SHOT_DIR)
+        # Canh accounts.db chu khong theo thu muc dang chay: mo exe qua shortcut
+        # thi thu muc dang chay co the la cho khac han.
+        if not out.is_absolute() and STORE is not None:
+            out = STORE.path.resolve().parent / out
+        out.mkdir(parents=True, exist_ok=True)
+        path = out / f"{time.strftime('%Y%m%d_%H%M%S')}_ld{inst.index}_{tag}.png"
+        inst.screenshot_pil().save(path)
+        log(f"da chup man hinh -> {path.resolve()}")
+    except Exception as exc:
+        log(f"chup man hinh hong ({type(exc).__name__}: {exc})")
+
+
 def one_round(inst: Instance, log: Log) -> str | None:
     """Mot vong: bat may ao -> VPN -> Roblox -> tao xong mot tai khoan.
 
@@ -670,6 +692,7 @@ def one_round(inst: Instance, log: Log) -> str | None:
     #    Mat khau sinh ra da thoa ca ba luat man hinh nay kiem: >= 8 ky tu,
     #    khong don gian, khong trung username (xem random_password()).
     #    Bam vao o password truoc: cu spam o buoc tren co the lam mat autofocus.
+    _debug_shot(inst, log, f"truoc_bam_password_{acc.username}")
     log(f"bam o password {PASSWORD_FIELD}")
     inst.tap(*PASSWORD_FIELD)
     pause(PASSWORD_FOCUS_WAIT)
