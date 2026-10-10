@@ -198,24 +198,31 @@ AFTER_HOLD = 20               # doi 20 giay sau lan giu cuoi, roi moi nhap mat k
 
 # --- Man "Create Account" / tao mat khau ---------------------------------
 # Man nay tu focus san vao o mat khau -> go thang, khong can bam truoc.
-# Do tu anh trong debug_shots (khung hinh that 400x500), luc hint AN:
-#   nhan "Password" y 206..214    o Password y 224..259    Done y 288..334
-#   dong "OR" y 356               nut "Create a passkey" y 377..424
-# Luc o Password dang focus (vien trang) thi hien them 3 dong kiem tra
-# ("Is not a simple password", ...) va Done bi day XUONG. Vi tri Done luc do
-# CHUA do lai o bo cuc nay -- xem anh trong DEBUG_DONE_DIR roi chinh.
-# Go xong o con focus -> hint con hien. Cu bam Done dau co the chi lam o mat
-# focus -> hint AN, Done nhay len cho cu. Nen bam HAI lan, moi lan theo mot
-# trang thai.
+# Do tu anh debug (khung hinh that 400x500). Man nay co HAI bo cuc:
+#
+#                          hint AN (o khong focus)   hint HIEN (o dang focus)
+#   o Password             y 224..259                y 224..257
+#   3 dong kiem tra        --                        y 268..321
+#   Done                   y 288..334                y 347..395
+#   dong "OR"              y 351..359                y 412..420
+#   "Create a passkey"     y 377..424                y 438..485
+#
+# Hai vung Done KHONG giao nhau -> khong co diem nao bam trung ca hai. Go xong
+# thi o con focus (hint hien); bam mot cu la o mat focus, hint an, Done nhay
+# len. Nen bam HAI lan theo dung thu tu: vi tri CO hint truoc, vi tri hint AN
+# sau. Dao nguoc la sai: cu dau lam hint an, cu sau bam vao cho Done da roi di.
 PASSWORD_FIELD = (200, 241)  # tam o. truoc: y=228 -- chi cach mep tren (224) 4px
 PASSWORD_FOCUS_WAIT = 2      # doi 2s sau khi bam o password truoc khi go
-DONE_BTN_HINT = (200, 350)   # con hint. CHUA do lai; luc hint an thi roi vao khoang trong
-DONE_BTN = (200, 315)        # hint da an, trong Done (288..334)
+# Lan 1, bo cuc co hint. Lay CAO hon tam nut (371): neu hint da an san thi 371
+# chi cach "Create a passkey" (377) 6px. 362 van trong Done (347..395), con
+# luc hint an thi roi vao khoang trong duoi chu "OR", cach passkey 15px.
+DONE_BTN_HINT = (200, 362)
+DONE_BTN = (200, 315)        # lan 2, bo cuc hint an, trong Done (288..334)
 # Chup man may ao de biet luc sap bam thi man hinh dang la gi. Anh la dung
 # khung hinh 400x500 cua may ao -> do toa do thang tren anh. Thu muc nam canh
 # accounts.db (chay exe thi la canh file exe). "" = tat rieng thu muc do.
 DEBUG_SHOT_DIR = "debug_shots"   # ngay truoc khi bam o password
-DEBUG_DONE_DIR = "debug_done"    # ngay truoc MOI cu bam Done
+DEBUG_DONE_DIR = "debug_done"    # _1: truoc cu bam Done dau, _2: truoc cu thu hai
 
 # Nhan chung cho MOI moc cho ben duoi (--slow). May yeu hoac chay nhieu may ao
 # thi moi thu deu cham di theo cung mot ty le, khong can sua tung hang so.
@@ -702,13 +709,13 @@ def one_round(inst: Instance, log: Log) -> str | None:
     pause(STEP_PAUSE)
 
     _debug_shot(inst, log, DEBUG_DONE_DIR, f"truoc_done_1_{acc.username}")
-    log(f"bam Done lan 2 tai {DONE_BTN} (hint da an)")
-    inst.tap(*DONE_BTN)
+    log(f"bam Done lan 1 tai {DONE_BTN_HINT} (vi tri con 3 dong hint)")
+    inst.tap(*DONE_BTN_HINT)
     pause(STEP_PAUSE)
 
     _debug_shot(inst, log, DEBUG_DONE_DIR, f"truoc_done_2_{acc.username}")
-    log(f"bam Done tai {DONE_BTN_HINT} (con 3 dong hint)")
-    inst.tap(*DONE_BTN_HINT)
+    log(f"bam Done lan 2 tai {DONE_BTN} (vi tri hint da an)")
+    inst.tap(*DONE_BTN)
     pause(STEP_PAUSE)
 
 
