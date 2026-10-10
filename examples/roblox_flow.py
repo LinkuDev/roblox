@@ -198,23 +198,24 @@ AFTER_HOLD = 20               # doi 20 giay sau lan giu cuoi, roi moi nhap mat k
 
 # --- Man "Create Account" / tao mat khau ---------------------------------
 # Man nay tu focus san vao o mat khau -> go thang, khong can bam truoc.
-# Do tu anh chup that 400x500: o Password y 247..280, Done y 312..355.
+# Do tu anh trong debug_shots (khung hinh that 400x500), luc hint AN:
+#   nhan "Password" y 206..214    o Password y 224..259    Done y 288..334
+#   dong "OR" y 356               nut "Create a passkey" y 377..424
 # Luc o Password dang focus (vien trang) thi hien them 3 dong kiem tra
-# ("Is not a simple password", ...) va Done bi day xuong y 371..416.
+# ("Is not a simple password", ...) va Done bi day XUONG. Vi tri Done luc do
+# CHUA do lai o bo cuc nay -- xem anh trong DEBUG_DONE_DIR roi chinh.
 # Go xong o con focus -> hint con hien. Cu bam Done dau co the chi lam o mat
 # focus -> hint AN, Done nhay len cho cu. Nen bam HAI lan, moi lan theo mot
 # trang thai.
-PASSWORD_FIELD = (200, 228)  # truoc: y=242 -- roi vao khe giua nhan va o nhap
+PASSWORD_FIELD = (200, 241)  # tam o. truoc: y=228 -- chi cach mep tren (224) 4px
 PASSWORD_FOCUS_WAIT = 2      # doi 2s sau khi bam o password truoc khi go
-# Lan 1, con hint. Khong lay tam nut (393): neu hint lo an som thi 393 chi
-# cach nut "Create a passkey" (y 399..445) 6px. 385 van trong Done (371..416)
-# ma cach passkey 14px, an som thi chi roi vao chu "OR".
-DONE_BTN_HINT = (200, 350)
-DONE_BTN = (200, 315)        # lan 2, hint da an. truoc: y=370
-# Chup man may ao ngay TRUOC khi bam o password, de biet luc do man hinh dang
-# la gi. Anh la dung khung hinh 400x500 cua may ao -> do toa do thang tren anh.
-# Thu muc nam canh accounts.db (chay exe thi la canh file exe). "" = tat.
-DEBUG_SHOT_DIR = "debug_shots"
+DONE_BTN_HINT = (200, 350)   # con hint. CHUA do lai; luc hint an thi roi vao khoang trong
+DONE_BTN = (200, 315)        # hint da an, trong Done (288..334)
+# Chup man may ao de biet luc sap bam thi man hinh dang la gi. Anh la dung
+# khung hinh 400x500 cua may ao -> do toa do thang tren anh. Thu muc nam canh
+# accounts.db (chay exe thi la canh file exe). "" = tat rieng thu muc do.
+DEBUG_SHOT_DIR = "debug_shots"   # ngay truoc khi bam o password
+DEBUG_DONE_DIR = "debug_done"    # ngay truoc MOI cu bam Done
 
 # Nhan chung cho MOI moc cho ben duoi (--slow). May yeu hoac chay nhieu may ao
 # thi moi thu deu cham di theo cung mot ty le, khong can sua tung hang so.
@@ -529,12 +530,12 @@ def connect_vpn(inst: Instance, log: Log) -> None:
     log("VPN da len (tun co IP)")
 
 
-def _debug_shot(inst: Instance, log: Log, tag: str) -> None:
-    """Luu anh man hinh may ao vao DEBUG_SHOT_DIR. Hong thi chi ghi log."""
-    if not DEBUG_SHOT_DIR:
+def _debug_shot(inst: Instance, log: Log, folder: str, tag: str) -> None:
+    """Luu anh man hinh may ao vao `folder`. Hong thi chi ghi log."""
+    if not folder:
         return
     try:
-        out = Path(DEBUG_SHOT_DIR)
+        out = Path(folder)
         # Canh accounts.db chu khong theo thu muc dang chay: mo exe qua shortcut
         # thi thu muc dang chay co the la cho khac han.
         if not out.is_absolute() and STORE is not None:
@@ -692,7 +693,7 @@ def one_round(inst: Instance, log: Log) -> str | None:
     #    Mat khau sinh ra da thoa ca ba luat man hinh nay kiem: >= 8 ky tu,
     #    khong don gian, khong trung username (xem random_password()).
     #    Bam vao o password truoc: cu spam o buoc tren co the lam mat autofocus.
-    _debug_shot(inst, log, f"truoc_bam_password_{acc.username}")
+    _debug_shot(inst, log, DEBUG_SHOT_DIR, f"truoc_bam_password_{acc.username}")
     log(f"bam o password {PASSWORD_FIELD}")
     inst.tap(*PASSWORD_FIELD)
     pause(PASSWORD_FOCUS_WAIT)
@@ -700,10 +701,12 @@ def one_round(inst: Instance, log: Log) -> str | None:
     inst.text(acc.password)
     pause(STEP_PAUSE)
 
+    _debug_shot(inst, log, DEBUG_DONE_DIR, f"truoc_done_1_{acc.username}")
     log(f"bam Done lan 2 tai {DONE_BTN} (hint da an)")
     inst.tap(*DONE_BTN)
     pause(STEP_PAUSE)
 
+    _debug_shot(inst, log, DEBUG_DONE_DIR, f"truoc_done_2_{acc.username}")
     log(f"bam Done tai {DONE_BTN_HINT} (con 3 dong hint)")
     inst.tap(*DONE_BTN_HINT)
     pause(STEP_PAUSE)
