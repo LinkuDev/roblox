@@ -18,6 +18,7 @@ Cau hinh may ao cho flow: 400x500 @160, bat root, doi ten:
 """
 
 import argparse
+import re
 import socket
 import sys
 import time
@@ -64,6 +65,46 @@ def raw(memu: MemuConsole, *args) -> str:
     return out
 
 
+def read_identity(inst: Instance) -> dict[str, str]:
+    """Dinh danh ma Android ben trong may ao nhin thay -- thu Roblox doc.
+
+    KHONG doc tu file cau hinh cua MEmu: may ao chua boot thi file do con
+    trong (IMEI "No value set!"), va `memuc randomize` co the chi ap dung luc
+    boot. Chi doc ben trong Android moi biet dinh danh that.
+    """
+    def q(cmd: str) -> str:
+        try:
+            return inst.sh(cmd, timeout=15).strip()
+        except Exception as exc:
+            return f"<loi {type(exc).__name__}>"
+
+    ident = {
+        "android_id": q("settings get secure android_id"),
+        "model": q("getprop ro.product.model"),
+        "serial": q("getprop ro.serialno"),
+        "mac": q("cat /sys/class/net/wlan0/address 2>/dev/null"
+                 " || cat /sys/class/net/eth0/address 2>/dev/null"),
+    }
+    # IMEI khong co lenh chuan. `service call iphonesubinfo 1` tra ve mot parcel
+    # dang  0x00..: 0000000f 00340038 '........8.4.5.4.'  -> ghep phan trong
+    # ngoac don, bo dau cham, giu chu so.
+    raw = q("service call iphonesubinfo 1 s16 com.android.shell")
+    digits = re.sub(r"\D", "", "".join(re.findall(r"'([^']*)'", raw)))
+    ident["imei"] = digits if len(digits) >= 14 else "(khong doc duoc)"
+    return ident
+
+
+def boot_and_read(memu: MemuConsole, idx: int) -> dict[str, str]:
+    memu.launch(idx)
+    inst = Instance(memu, idx)
+    inst.wait_boot_adb(timeout=240)
+    time.sleep(5)          # cho dich vu he thong (settings, telephony) len han
+    ident = read_identity(inst)
+    memu.quit(idx)
+    memu.wait_stopped(idx, settle=3)
+    return ident
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -71,7 +112,10 @@ def main() -> int:
     ap.add_argument("--start", type=int, metavar="INDEX",
                     help="bat may ao nay roi thu ADB + root")
     ap.add_argument("--test-clone", type=int, metavar="INDEX",
-                    help="clone may ao nay thanh _memu_check roi xoa (CHAM, vai phut)")
+                    help="clone may ao nay thanh _memu_check, boot ca hai so dinh "
+                         "danh that, roi xoa (CHAM, 1-2 phut)")
+    ap.add_argument("--no-boot", action="store_true",
+                    help="kem --test-clone: chi clone + xoa, khong boot de so dinh danh")
     ap.add_argument("--prepare", type=int, metavar="INDEX",
                     help="dat 400x500 @160 + bat root cho may ao nay (TAT may ao truoc)")
     ap.add_argument("--rename", metavar="TEN",
@@ -219,29 +263,42 @@ def main() -> int:
             if new:
                 record(OK, f"clone xong sau {time.monotonic() - t0:.0f}s -> index={new.index}")
 
-                # Clone chep nguyen cau hinh -> ban clone mang Y HET dinh danh cua
-                # may nguon. Farm doi bang `memuc randomize`; thu ngay tren ban
-                # clone nay xem lenh do co that su doi gi khong.
-                keys = ("imei", "macaddress")
-                src_ids = {k: memu.get_config(src, k) for k in keys}
-                cl_ids = {k: memu.get_config(new.index, k) for k in keys}
-                same = all(src_ids[k] == cl_ids[k] for k in keys)
-                record(OK if same else WARN,
-                       f"clone {'mang y het' if same else 'KHAC'} dinh danh may nguon: {cl_ids}")
+                # Doc file cau hinh chi de THAM KHAO: may ao chua boot thi file
+                # do con trong, nen khong dung no de ket luan.
+                print(f"  cau hinh may nguon: imei={memu.get_config(src, 'imei')!r} "
+                      f"mac={memu.get_config(src, 'macaddress')!r}")
+                print(f"  cau hinh ban clone: imei={memu.get_config(new.index, 'imei')!r} "
+                      f"mac={memu.get_config(new.index, 'macaddress')!r}  (chua boot)")
 
-                out = raw(memu, "randomize", "-i", new.index)
-                native = "LOI" not in out.upper() and "ERROR" not in out.upper()
-                if not native:
-                    print("  -> memuc khong co lenh randomize, thu nhanh du phong")
-                    memu._randomize(new.index)
-                after = {k: memu.get_config(new.index, k) for k in keys}
-                changed = [k for k in keys if after[k] != cl_ids[k]]
-                record(OK if len(changed) == len(keys) else FAIL,
-                       f"{'memuc randomize' if native else 'nhanh du phong'} doi duoc "
-                       f"{changed or 'KHONG GI'}: {after}")
-                if not native:
-                    record(WARN, "nhanh du phong KHONG doi duoc android_id -- cac clone "
-                                 "co the bi gom nhom qua android_id")
+                # Lam y nhu Farm: randomize TRUOC lan boot dau tien.
+                raw(memu, "randomize", "-i", new.index)
+
+                if args.no_boot:
+                    print("  --no-boot: bo qua buoc so dinh danh that")
+                else:
+                    print(f"\n  boot may nguon (index={src}) de doc dinh danh that...")
+                    a = boot_and_read(memu, src)
+                    print(f"  boot ban clone (index={new.index}) de doc dinh danh that...")
+                    b = boot_and_read(memu, new.index)
+
+                    print(f"\n  {'khoa':12} {'may nguon':22} {'ban clone':22} ket qua")
+                    print(f"  {'-' * 12} {'-' * 22} {'-' * 22} -------")
+                    for k in ("android_id", "imei", "mac", "serial", "model"):
+                        va, vb = a.get(k, ""), b.get(k, "")
+                        readable = va and vb and not va.startswith(("<", "(")) \
+                            and not vb.startswith(("<", "("))
+                        if not readable:
+                            verdict = "khong doc duoc"
+                        elif va != vb:
+                            verdict = "KHAC"
+                        else:
+                            verdict = "TRUNG"
+                        print(f"  {k:12} {va[:22]:22} {vb[:22]:22} {verdict}")
+                        # model trung la binh thuong. Ba khoa con lai thi trung
+                        # nghia la hai tai khoan co cung dau van tay thiet bi.
+                        if k in ("android_id", "imei", "mac") and readable:
+                            record(OK if va != vb else FAIL,
+                                   f"{k}: {'khac nhau' if va != vb else 'TRUNG giua nguon va clone'}")
 
                 memu.remove("_memu_check")
                 record(OK, "da xoa _memu_check")
