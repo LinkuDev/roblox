@@ -14,9 +14,13 @@ nguyen xi. Khac LDPlayer o nhung cho sau, va day la nhung cho de vap:
   - Khong co global setting nhu LDPlayer: fps/audio dat theo TUNG may ao.
   - ADB luon bat san, khong co setting "ADB debugging" nhu LDPlayer.
 
-Da kiem chung tren may that: listvms, getconfigex, isvmrunning (doc). Cac lenh
-GHI (setconfigex, start, clone, rename...) chua -- chay examples/memu_check.py
-voi --prepare / --start / --test-clone de thu.
+Da kiem chung tren may that (examples/memu_check.py):
+    doc     listvms, getconfigex, isvmrunning
+    ghi     setconfigex (do phan giai, dpi, root), rename
+    chay    start -> Android boot -> ADB o 21503 (dung quy uoc) -> wm size 400x500
+    root    `su 0 <lenh>` (giong LDPlayer; nhanh `su -c` de cho ban MEmu khac)
+CHUA kiem chung: clone, remove, randomize, installapp, startapp/stopapp,
+va hai khoa fps / enable_audio (luon "No value set!" -- co the sai ten).
 
 Dinh dang that do duoc:
     listvms        0,MEmu,0,0,0          (5 cot: index,ten,hwnd,dang_chay,pid)
