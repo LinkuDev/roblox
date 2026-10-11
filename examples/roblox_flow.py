@@ -838,10 +838,14 @@ def build_instances(console: Emulator, sources: list[str] | None = None,
     for src_name in sources:
         src = console.find(src_name)
         if src is None:
-            print(f"[FAIL] Khong co may ao {src_name!r}. Dang co:")
-            for i in console.list2():
-                print(f"    index={i.index} name={i.name!r}")
-            sys.exit(1)
+            # raise chu khong sys.exit: GUI chay ham nay o luong phu, va
+            # sys.exit nem SystemExit -- thu `except Exception` cua GUI KHONG
+            # bat. Luong chet lang le, nhat ky khong co dong loi nao.
+            have = [i.name for i in console.list2()]
+            raise RuntimeError(
+                f"Khong co may nguon {src_name!r} tren {console.kind}. "
+                f"Dang co: {have or 'khong may nao'}. "
+                f"Sua lai danh sach Nguon cho khop.")
 
         if RESOLUTION:
             w, h, dpi = RESOLUTION
@@ -850,7 +854,13 @@ def build_instances(console: Emulator, sources: list[str] | None = None,
         print(f"Nguon: index={src.index} {src.name!r} {w}x{h}@{dpi}")
 
         instances.append(Instance(console, src.index))
-        spec = Spec(width=w, height=h, dpi=dpi, cpu=CPU, memory=MEMORY)
+        # MEmu: ep bat root tren TUNG clone. `memuc clone` reset mot phan cau
+        # hinh (IMEI ve trong, MAC sinh moi -- do tren may that), khong chac
+        # enable_su con giu. Mat root thi buoc lay cookie hong voi failed_no_root
+        # ma khong bao gi ro rang. LDPlayer da chay on (root thua huong tu may
+        # nguon) nen khong dung toi.
+        extra = {"root": True} if console.kind == "memu" else {}
+        spec = Spec(width=w, height=h, dpi=dpi, cpu=CPU, memory=MEMORY, extra=extra)
         for i in range(CLONES):
             name = f"{src_name}_{PREFIX}{i}"
             info = console.find(name)
