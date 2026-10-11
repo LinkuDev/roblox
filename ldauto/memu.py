@@ -23,7 +23,11 @@ Da kiem chung tren may that (examples/memu_check.py):
             -> vm_dir "MemuHyperv VMs\\MEmu_<i>" dung -> remove
     khoa    fps, enable_audio dung ten: chi co gia tri SAU lan boot dau tien,
             truoc do memuc tra "No value set!"
-CHUA kiem chung: randomize, installapp, startapp/stopapp.
+    dinh danh  clone TU doi MAC. randomize ap dung LUC BOOT (doc file cau hinh
+            ngay sau do khong thay doi gi): sau boot, android_id / MAC /
+            serial / model cua clone deu khac may nguon.
+CHUA kiem chung: installapp, startapp/stopapp (flow mo app qua ADB, khong
+dung hai lenh nay).
 
 Dinh dang that do duoc:
     listvms        0,MEmu,0,0,0                  (tat)

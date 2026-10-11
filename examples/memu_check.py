@@ -84,13 +84,24 @@ def read_identity(inst: Instance) -> dict[str, str]:
         "serial": q("getprop ro.serialno"),
         "mac": q("cat /sys/class/net/wlan0/address 2>/dev/null"
                  " || cat /sys/class/net/eth0/address 2>/dev/null"),
+        # Toan bo toa do bam do o 400x500 @160. randomize doi ca model may --
+        # phai chac no khong doi luon do phan giai/DPI, khong thi bam truot het.
+        "screen": (q("wm size").split(":")[-1].strip() + " @"
+                   + q("wm density").split(":")[-1].strip()),
     }
     # IMEI khong co lenh chuan. `service call iphonesubinfo 1` tra ve mot parcel
     # dang  0x00..: 0000000f 00340038 '........8.4.5.4.'  -> ghep phan trong
-    # ngoac don, bo dau cham, giu chu so.
-    raw = q("service call iphonesubinfo 1 s16 com.android.shell")
-    digits = re.sub(r"\D", "", "".join(re.findall(r"'([^']*)'", raw)))
-    ident["imei"] = digits if len(digits) >= 14 else "(khong doc duoc)"
+    # ngoac don, bo dau cham, giu chu so. Android chan lenh nay voi tai khoan
+    # shell (can READ_PRIVILEGED_PHONE_STATE), nen thu lai bang root.
+    for cmd in ("service call iphonesubinfo 1 s16 com.android.shell",
+                "su 0 service call iphonesubinfo 1 s16 com.android.shell"):
+        raw = q(cmd)
+        digits = re.sub(r"\D", "", "".join(re.findall(r"'([^']*)'", raw)))
+        if len(digits) >= 14:
+            ident["imei"] = digits
+            break
+    else:
+        ident["imei"] = "(khong doc duoc)"
     return ident
 
 
@@ -283,7 +294,7 @@ def main() -> int:
 
                     print(f"\n  {'khoa':12} {'may nguon':22} {'ban clone':22} ket qua")
                     print(f"  {'-' * 12} {'-' * 22} {'-' * 22} -------")
-                    for k in ("android_id", "imei", "mac", "serial", "model"):
+                    for k in ("android_id", "imei", "mac", "serial", "model", "screen"):
                         va, vb = a.get(k, ""), b.get(k, "")
                         readable = va and vb and not va.startswith(("<", "(")) \
                             and not vb.startswith(("<", "("))
@@ -294,11 +305,16 @@ def main() -> int:
                         else:
                             verdict = "TRUNG"
                         print(f"  {k:12} {va[:22]:22} {vb[:22]:22} {verdict}")
-                        # model trung la binh thuong. Ba khoa con lai thi trung
-                        # nghia la hai tai khoan co cung dau van tay thiet bi.
+                        # Ba khoa nay trung nghia la hai tai khoan co cung dau van
+                        # tay thiet bi -> PHAI khac. Man hinh thi nguoc lai: PHAI
+                        # giong, vi toa do bam chi dung o mot do phan giai.
                         if k in ("android_id", "imei", "mac") and readable:
                             record(OK if va != vb else FAIL,
                                    f"{k}: {'khac nhau' if va != vb else 'TRUNG giua nguon va clone'}")
+                        if k == "screen" and readable:
+                            record(OK if va == vb else FAIL,
+                                   f"man hinh: {'giong nhau' if va == vb else 'KHAC -- toa do bam se truot'}"
+                                   f" ({vb})")
 
                 memu.remove("_memu_check")
                 record(OK, "da xoa _memu_check")
