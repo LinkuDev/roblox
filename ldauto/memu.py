@@ -15,16 +15,21 @@ nguyen xi. Khac LDPlayer o nhung cho sau, va day la nhung cho de vap:
   - ADB luon bat san, khong co setting "ADB debugging" nhu LDPlayer.
 
 Da kiem chung tren may that (examples/memu_check.py):
-    doc     listvms, getconfigex, isvmrunning
+    doc     listvms (ca luc tat lan luc chay), getconfigex, isvmrunning
     ghi     setconfigex (do phan giai, dpi, root), rename
     chay    start -> Android boot -> ADB o 21503 (dung quy uoc) -> wm size 400x500
     root    `su 0 <lenh>` (giong LDPlayer; nhanh `su -c` de cho ban MEmu khac)
-CHUA kiem chung: clone, remove, randomize, installapp, startapp/stopapp,
-va hai khoa fps / enable_audio (luon "No value set!" -- co the sai ten).
+    clone   tat nguon -> clone -> tim index moi bang so danh sach -> rename
+            -> vm_dir "MemuHyperv VMs\MEmu_<i>" dung -> remove
+    khoa    fps, enable_audio dung ten: chi co gia tri SAU lan boot dau tien,
+            truoc do memuc tra "No value set!"
+CHUA kiem chung: randomize, installapp, startapp/stopapp.
 
 Dinh dang that do duoc:
-    listvms        0,MEmu,0,0,0          (5 cot: index,ten,hwnd,dang_chay,pid)
+    listvms        0,MEmu,0,0,0                  (tat)
+                   0,roblox,105251468,1,55832    (chay: hwnd, 1, pid)
     getconfigex    Value: 1280  |  Value: "327A..."  |  No value set!
+                   (macaddress co ngoac kep truoc lan boot dau, mat ngoac sau do)
     isvmrunning    Not Running
 """
 

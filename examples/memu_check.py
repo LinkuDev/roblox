@@ -218,6 +218,31 @@ def main() -> int:
             new = memu.find("_memu_check")
             if new:
                 record(OK, f"clone xong sau {time.monotonic() - t0:.0f}s -> index={new.index}")
+
+                # Clone chep nguyen cau hinh -> ban clone mang Y HET dinh danh cua
+                # may nguon. Farm doi bang `memuc randomize`; thu ngay tren ban
+                # clone nay xem lenh do co that su doi gi khong.
+                keys = ("imei", "macaddress")
+                src_ids = {k: memu.get_config(src, k) for k in keys}
+                cl_ids = {k: memu.get_config(new.index, k) for k in keys}
+                same = all(src_ids[k] == cl_ids[k] for k in keys)
+                record(OK if same else WARN,
+                       f"clone {'mang y het' if same else 'KHAC'} dinh danh may nguon: {cl_ids}")
+
+                out = raw(memu, "randomize", "-i", new.index)
+                native = "LOI" not in out.upper() and "ERROR" not in out.upper()
+                if not native:
+                    print("  -> memuc khong co lenh randomize, thu nhanh du phong")
+                    memu._randomize(new.index)
+                after = {k: memu.get_config(new.index, k) for k in keys}
+                changed = [k for k in keys if after[k] != cl_ids[k]]
+                record(OK if len(changed) == len(keys) else FAIL,
+                       f"{'memuc randomize' if native else 'nhanh du phong'} doi duoc "
+                       f"{changed or 'KHONG GI'}: {after}")
+                if not native:
+                    record(WARN, "nhanh du phong KHONG doi duoc android_id -- cac clone "
+                                 "co the bi gom nhom qua android_id")
+
                 memu.remove("_memu_check")
                 record(OK, "da xoa _memu_check")
             else:
