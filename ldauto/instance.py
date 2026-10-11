@@ -11,20 +11,26 @@ from pathlib import Path
 import adbutils
 
 from . import cookie as _cookie
-from .console import LDConsole
+from .emulator import Emulator
 
 
 class Instance:
-    """Gan mot may ao LDPlayer voi mot ket noi ADB."""
+    """Gan mot may ao (LDPlayer hoac MEmu) voi mot ket noi ADB."""
 
-    def __init__(self, console: LDConsole, index: int, adb_port: int | None = None):
+    def __init__(self, console: Emulator, index: int, adb_port: int | None = None):
         self.console = console
         self.index = index
-        # LDPlayer map index -> cong adb theo quy uoc: 0->5555, 1->5557, 2->5559...
-        # Quy uoc nay co the sai neu ban da doi cong trong settings, nen cho phep ghi de.
-        self.adb_port = adb_port if adb_port is not None else 5555 + index * 2
+        # Moi emulator mot quy uoc cong: LDPlayer 5555+2i, MEmu 21503+10i. Hoi
+        # chinh emulator thay vi gan cung. Quy uoc co the sai neu da doi cong
+        # trong settings, nen cho phep ghi de. console=None (chi dung ADB) thi
+        # lui ve quy uoc LDPlayer cho code cu.
+        if adb_port is None:
+            port_for = getattr(console, "adb_port_for", None)
+            adb_port = port_for(index) if port_for else 5555 + index * 2
+        self.adb_port = adb_port
         self._device: adbutils.AdbDevice | None = None
         self._resolution: tuple[int, int] | None = None
+        self._su_form: str | None = None    # "0" | "-c" | "none", xem _su()
 
     @property
     def serial(self) -> str:
@@ -625,6 +631,38 @@ class Instance:
     # ---------- cookie .ROBLOSECURITY ----------
 
     # Ten file cookie cua WebView Chromium, quet de-quy trong /data/data.
+    # ---------- root ----------
+
+    def _detect_su(self) -> str:
+        """Cu phap su ma may nay hieu. Do mot lan roi nho.
+
+        Hai kieu, va emulator khac nhau dung kieu khac nhau:
+            su 0 <lenh>        -- su kieu AOSP, LDPlayer dung
+            su -c "<lenh>"     -- su kieu SuperSU/Magisk, nhieu ban MEmu dung
+        Goi sai kieu thi lenh khong chay ma cung khong bao loi gi -- lay cookie
+        se tra ve rong y nhu "khong co cookie", rat kho nhan ra la do root.
+        """
+        if self._su_form is None:
+            self._su_form = "none"
+            for form, probe in (("0", "su 0 id"), ("-c", 'su -c "id"')):
+                try:
+                    if "uid=0" in self.sh(f"{probe} 2>/dev/null", timeout=15):
+                        self._su_form = form
+                        break
+                except Exception:
+                    continue
+        return self._su_form
+
+    def has_root(self) -> bool:
+        return self._detect_su() != "none"
+
+    def _su(self, cmd: str, timeout: float = 30.0) -> str:
+        """Chay `cmd` quyen root, dung cu phap su cua may nay."""
+        if self._detect_su() == "-c":
+            # Lenh trong ngoac KEP: duong dan ben trong dung ngoac don.
+            return self.sh(f'su -c "{cmd}" 2>/dev/null', timeout=timeout)
+        return self.sh(f"su 0 {cmd} 2>/dev/null", timeout=timeout)
+
     _COOKIE_NAMES = ("Cookies", "cookies.sqlite", "webviewCookiesChromium.db")
 
     def _find_cookie_dbs(self) -> list[str]:
@@ -637,8 +675,7 @@ class Instance:
         # nhieu tang shell (Python -> adb -> sh Android), rat de sai mot dau.
         found: list[str] = []
         for name in self._COOKIE_NAMES:
-            out = self.sh(f"su 0 find /data/data/ -type f -name {name} 2>/dev/null",
-                          timeout=60)
+            out = self._su(f"find /data/data/ -type f -name {name}", timeout=60)
             found += [ln.strip() for ln in out.splitlines()
                       if ln.strip() and "roblox" in ln.lower()]
         return found
@@ -660,8 +697,7 @@ class Instance:
         if not paths:
             # Phan biet "khong co root" voi "khong co cookie": thu doc mot thu muc
             # can root. Rong/loi -> gan nhu chac la chua bat root.
-            probe = self.sh("su 0 id 2>/dev/null", timeout=15)
-            if "uid=0" not in probe:
+            if not self.has_root():
                 return None, "no_root"
             return None, "not_found"
 
@@ -673,8 +709,8 @@ class Instance:
                 ok = False
                 for suffix in ("", "-wal", "-shm"):
                     # -wal/-shm co the khong ton tai -> bo qua loi, khong sao.
-                    self.sh(f"su 0 cp '{src}{suffix}' '{stage}{suffix}' 2>/dev/null", timeout=30)
-                    self.sh(f"su 0 chmod 666 '{stage}{suffix}' 2>/dev/null", timeout=15)
+                    self._su(f"cp '{src}{suffix}' '{stage}{suffix}'", timeout=30)
+                    self._su(f"chmod 666 '{stage}{suffix}'", timeout=15)
                     try:
                         self.device.sync.pull(f"{stage}{suffix}", str(local) + suffix)
                         if suffix == "":
@@ -683,7 +719,7 @@ class Instance:
                         if suffix == "":
                             ok = False
                     finally:
-                        self.sh(f"su 0 rm -f '{stage}{suffix}' 2>/dev/null", timeout=15)
+                        self._su(f"rm -f '{stage}{suffix}'", timeout=15)
                 if not ok or not local.exists():
                     continue
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from .console import LDConsole
+from .emulator import Emulator
 from .instance import Instance
 
 
@@ -24,7 +24,7 @@ class Spec:
 
 
 class Farm:
-    def __init__(self, console: LDConsole):
+    def __init__(self, console: Emulator):
         self.console = console
 
     def ensure(self, name: str, spec: Spec, source: int | str | None = None) -> Instance:

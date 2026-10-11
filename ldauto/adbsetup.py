@@ -152,10 +152,21 @@ def download_platform_tools(log=print) -> Path:
     return out
 
 
+def patch_emulator_adb(console, log=print) -> tuple[bool, str]:
+    """Nang adb.exe cua emulator `console` (LDPlayer hoac MEmu).
+
+    Moi emulator tat mot bo tien trinh khac nhau truoc khi ghi de duoc file --
+    lay tu console.process_names thay vi gan cung ten tien trinh LDPlayer.
+    """
+    return patch_ldplayer_adb(console.install_dir, log=log,
+                              kill_names=console.process_names)
+
+
 def patch_ldplayer_adb(
     ld_dir: str | Path,
     log=print,
     kill_ldplayer: bool = True,
+    kill_names: tuple[str, ...] = ("dnplayer.exe", "dnconsole.exe", "adb.exe"),
 ) -> tuple[bool, str]:
     """Thay adb.exe cua LDPlayer bang ban moi. Tra ve (thanh cong, mo ta).
 
@@ -163,7 +174,7 @@ def patch_ldplayer_adb(
     Windows khoa file dang chay nen khong ghi de duoc.
     """
     ld_dir = Path(ld_dir)
-    if ld_dir.is_file():                 # lo truyen duong dan ldconsole.exe
+    if ld_dir.is_file():                 # lo truyen duong dan ldconsole/memuc.exe
         ld_dir = ld_dir.parent
     target = ld_dir / "adb.exe"
     if not target.exists():
@@ -181,9 +192,9 @@ def patch_ldplayer_adb(
         return False, f"Tai that bai: {type(exc).__name__}: {exc}"
 
     if kill_ldplayer:
-        log("tat LDPlayer va adb server (file dang chay thi khong ghi de duoc)...")
+        log(f"tat {', '.join(kill_names)} (file dang chay thi khong ghi de duoc)...")
         _run([str(target), "kill-server"], timeout=15)
-        for name in ("dnplayer.exe", "dnconsole.exe", "adb.exe"):
+        for name in kill_names:
             _run(["taskkill", "/F", "/IM", name], timeout=15)
 
     # Backup truoc khi ghi de: ban moi loi thi con duong lui.

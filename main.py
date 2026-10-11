@@ -139,7 +139,7 @@ def db_stats(db: str) -> dict[str, int]:
 class App:
     def __init__(self, root: tk.Tk):
         self.root = root
-        root.title("Roblox Farm - LDPlayer")
+        root.title("Roblox Farm - LDPlayer / MEmu")
         root.geometry("760x560")
 
         self.log_q: queue.Queue[str] = queue.Queue()
@@ -198,7 +198,7 @@ class App:
             v.trace_add("write", lambda *a: self._save_config())
 
         row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
-        ttk.Label(row, text="ldconsole:", width=10).pack(side="left")
+        ttk.Label(row, text="Console:", width=10).pack(side="left")
         ttk.Entry(row, textvariable=self.var_ld).pack(side="left", fill="x", expand=True)
         ttk.Button(row, text="...", width=3, command=self._pick_ld).pack(side="left", padx=3)
 
@@ -329,7 +329,7 @@ class App:
         # Cau hinh dung CHUNG bien voi tab 'Tao acc' (sua ben nao cung dong bo).
         cf = ttk.LabelFrame(f, text="Cau hinh")
         cf.pack(fill="x", padx=8, pady=(6, 2))
-        for label, var, cmd in (("ldconsole:", self.var_ld, self._pick_ld),
+        for label, var, cmd in (("Console:", self.var_ld, self._pick_ld),
                                  ("LDPlayer.exe:", self.var_ldplayer, self._pick_ldplayer),
                                  ("DB:", self.var_db, self._pick_db)):
             row = ttk.Frame(cf); row.pack(fill="x", padx=6, pady=3)
@@ -435,7 +435,7 @@ class App:
         log = rf.Log("login")
         try:
             import roblox_login as rl
-            console = rf.LDConsole(self.var_ld.get())
+            console = self._console()
             rl.STORE = AccountStore(self.var_db.get())
             log(f"DB: {os.path.abspath(self.var_db.get())} | "
                 f"{len(self._login_accounts)} acc can login")
@@ -453,8 +453,8 @@ class App:
 
         def work():
             try:
-                rf.LDConsole(path).quit_all()
-                rf.Log("main")("Da tat tat ca may ao LDPlayer")
+                rf.open_emulator(path).quit_all()
+                rf.Log("main")("Da tat tat ca may ao")
             except Exception as exc:
                 rf.Log("main")(f"Tat LD loi: {type(exc).__name__}: {exc}")
 
@@ -483,9 +483,14 @@ class App:
         sb.pack(side="right", fill="y")
         self.txt.pack(side="left", fill="both", expand=True)
 
+    def _console(self):
+        """Emulator dung theo duong dan dang nhap: memuc.exe -> MEmu, con lai LDPlayer."""
+        return rf.open_emulator(self.var_ld.get())
+
     # ----- chon file -----
     def _pick_ld(self):
-        p = filedialog.askopenfilename(title="Chon ldconsole.exe / dnconsole.exe",
+        p = filedialog.askopenfilename(
+            title="Chon dnconsole.exe (LDPlayer) hoac memuc.exe (MEmu)",
                                        filetypes=[("exe", "*.exe"), ("all", "*.*")])
         if p:
             self.var_ld.set(p)
@@ -514,6 +519,16 @@ class App:
         if self._running():
             messagebox.showwarning("Dang chay", "Dung farm truoc da.")
             return
+        try:
+            kind = self._console().kind
+        except Exception:
+            kind = "ldplayer"
+        if kind != "ldplayer":
+            # Setting nay chi LDPlayer co. Sua file config cua LDPlayer tren
+            # mot may MEmu thi khong sai gi nhung cung khong lam gi.
+            messagebox.showinfo(
+                "Khong can", f"{kind} luon bat ADB san -- nut nay chi danh cho LDPlayer.")
+            return
         ld_dir = Path(self.var_ld.get())
         ld_dir = ld_dir.parent if ld_dir.is_file() else ld_dir
         log = rf.Log("adbdbg")
@@ -533,7 +548,7 @@ class App:
             return
 
         try:
-            console = rf.LDConsole(self.var_ld.get())
+            console = self._console()
             log("tat het may ao truoc khi sua config...")
             console.quit_all()
             time.sleep(5)
@@ -570,7 +585,7 @@ class App:
                     log("  [!] file khong ton tai -> adbutils se dung ban cua rieng no")
                 ld_adb = Path(self.var_ld.get()).with_name("adb.exe")
                 if ld_adb.exists():
-                    log(f"adb cua LDPlayer: {adbsetup.version_label(ld_adb)}")
+                    log(f"adb cua emulator: {adbsetup.version_label(ld_adb)}")
                 log(f"ANDROID_ADB_SERVER_PORT: "
                     f"{os.environ.get('ANDROID_ADB_SERVER_PORT', '(chua dat)')}")
 
@@ -583,22 +598,37 @@ class App:
                 except Exception as exc:
                     log(f"  [!] khong noi duoc adb server: {type(exc).__name__}: {exc}")
 
-                # 3. cong nao dang mo -- khong co cong nao = ADB debugging bi TAT
+                # 3. cong nao dang mo. Quet DUNG cong cua tung may ao theo quy
+                #    uoc cua emulator (LDPlayer 5555+2i, MEmu 21503+10i) chu khong
+                #    quet mot dai co dinh -- dai cua LDPlayer khong cham toi MEmu.
+                try:
+                    emu = self._console()
+                    emu_infos = emu.list2()
+                except Exception as exc:
+                    emu, emu_infos = None, []
+                    log(f"  [!] khong mo duoc emulator: {type(exc).__name__}: {exc}")
+                log(f"emulator: {emu.kind if emu else '?'}")
+                ports = [emu.adb_port_for(i.index) for i in emu_infos] if emu else []
                 opened = []
-                for port in range(5554, 5600):
+                for port in ports:
                     with socket.socket() as sk:
                         sk.settimeout(0.2)
                         if sk.connect_ex(("127.0.0.1", port)) == 0:
                             opened.append(port)
-                log(f"cong ADB dang mo: {opened or 'KHONG CO CONG NAO'}")
+                log(f"cong ADB dang mo: {opened or 'KHONG CO CONG NAO'} "
+                    f"(tren {len(ports)} cong cua {len(emu_infos)} may ao)")
 
                 # Setting ADB debugging cua TUNG may ao -- doc thang tu file
                 # config. Cong mo ma bat tay khong xong ('device offline' mai)
                 # thi gan nhu chac la khoa nay dang bang 0.
                 ld_dir = Path(self.var_ld.get())
                 ld_dir = ld_dir.parent if ld_dir.is_file() else ld_dir
-                rows = ldconfig.survey(ld_dir)
-                log(f"ADB debugging trong config ({len(rows)} may ao):")
+                # Setting ADB debugging chi LDPlayer co. MEmu luon bat ADB.
+                rows = ldconfig.survey(ld_dir) if emu and emu.kind == "ldplayer" else []
+                if emu and emu.kind != "ldplayer":
+                    log(f"ADB debugging: {emu.kind} luon bat san, khong co setting")
+                else:
+                    log(f"ADB debugging trong config ({len(rows)} may ao):")
                 off = 0
                 for name, keys in rows[:20]:
                     if not keys:
@@ -611,16 +641,13 @@ class App:
                     log(f"  [!] {off} may ao co ADB debugging TAT hoac thieu khoa.")
                     log("      -> bam nut 'Bat ADB debug' roi bat lai may ao.")
 
-                # 4. ldconsole thay gi
-                try:
-                    console = rf.LDConsole(self.var_ld.get())
-                    infos = console.list2()
-                    log(f"ldconsole thay {len(infos)} may ao:")
-                    for i in infos[:20]:
-                        log(f"  index={i.index:<4} {i.name!r:22} chay={i.running} "
-                            f"{i.width}x{i.height}@{i.dpi}")
-                except Exception as exc:
-                    log(f"  [!] ldconsole loi: {type(exc).__name__}: {exc}")
+                # 4. emulator thay may ao nao
+                log(f"emulator thay {len(emu_infos)} may ao:")
+                for i in emu_infos[:20]:
+                    port = emu.adb_port_for(i.index)
+                    log(f"  index={i.index:<4} {i.name!r:22} chay={i.running} "
+                        f"cong={port}{' MO' if port in opened else ''} "
+                        f"{i.width}x{i.height}@{i.dpi}")
                 log("=" * 52)
             except Exception as exc:
                 log(f"[!] kiem tra loi: {type(exc).__name__}: {exc}")
@@ -629,10 +656,10 @@ class App:
         threading.Thread(target=work, daemon=True).start()
 
     def _upgrade_adb(self):
-        """Nang adb.exe cua LDPlayer len ban moi cua Google."""
+        """Nang adb.exe cua emulator (LDPlayer/MEmu) len ban moi cua Google."""
         if self._running():
             messagebox.showwarning(
-                "Dang chay", "Dung farm truoc: buoc nay tat LDPlayer va adb server.")
+                "Dang chay", "Dung farm truoc: buoc nay tat emulator va adb server.")
             return
         ld = Path(self.var_ld.get())
         ld_dir = ld.parent if ld.is_file() else ld
@@ -652,7 +679,7 @@ class App:
                 f"adb hien tai: {cur}\n"
                 f"Se tai platform-tools moi nhat cua Google (~10MB) va thay vao:\n"
                 f"{ld_dir}\n\n"
-                f"LDPlayer se bi TAT. Ban cu duoc backup thanh adb.exe.bak.\n\n"
+                f"Emulator se bi TAT. Ban cu duoc backup thanh adb.exe.bak.\n\n"
                 f"Tiep tuc?"):
             return
 
@@ -663,7 +690,7 @@ class App:
 
         def work():
             try:
-                ok, msg = adbsetup.patch_ldplayer_adb(ld_dir, log=log)
+                ok, msg = adbsetup.patch_emulator_adb(self._console(), log=log)
             except Exception as exc:
                 ok, msg = False, f"{type(exc).__name__}: {exc}"
             log(("[ OK ] " if ok else "[FAIL] ") + msg)
@@ -777,7 +804,7 @@ class App:
         """Chay trong thread nen -- KHONG dung tkinter o day."""
         log = rf.Log("main")
         try:
-            console = rf.LDConsole(self.var_ld.get())
+            console = self._console()
             rf.STORE = AccountStore(self.var_db.get())
             log(f"DB: {os.path.abspath(self.var_db.get())} "
                 f"({rf.STORE.count()} ban ghi)")
@@ -954,7 +981,7 @@ class App:
         rf.RESUME.set()
         # 3. Tat het may ao LDPlayer (ldconsole quitall) truoc khi thoat.
         try:
-            rf.LDConsole(self.var_ld.get()).quit_all()
+            self._console().quit_all()
         except Exception:
             pass
         # Cho su kien dong app gui xong (toi da 3s) truoc khi thoat tien trinh.

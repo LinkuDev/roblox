@@ -22,8 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import roblox_flow as rf  # noqa: E402  (dung chung STOP/RESUME/pause/connect_vpn...)
-from ldauto import (AccountStore, LDConsole, ensure_warning_prefix,  # noqa: E402
-                    report, run_parallel)
+from ldauto import (AccountStore, Emulator, ensure_warning_prefix,  # noqa: E402
+                    open_emulator, report, run_parallel)
 
 # --- Toa do man login (400x500) - DO tu anh goc roi quy ty le ra 400x500 ---
 # (do vi tri pixel nut xanh / o input trong anh, chia cho kich thuoc anh, x400/x500)
@@ -172,7 +172,7 @@ def load_logins(path: str | Path) -> list[tuple[str, str]]:
     return accs
 
 
-def run_login(console: LDConsole, accounts: list[tuple[str, str]],
+def run_login(console: Emulator, accounts: list[tuple[str, str]],
               sources: list[str], *, db: str = "accounts.db",
               stagger: float = STAGGER, arrange: bool = True) -> list:
     """Chay login song song tren cac may (nguon + clone). Dung cho CLI va GUI."""
@@ -227,7 +227,9 @@ def run_login(console: LDConsole, accounts: list[tuple[str, str]],
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--file", required=True, help="file user:pass, moi dong mot acc")
-    ap.add_argument("--ldconsole", default=rf.LDCONSOLE)
+    ap.add_argument("--ldconsole", "--console", dest="ldconsole", default=rf.LDCONSOLE,
+                    help="dnconsole.exe (LDPlayer) hoac memuc.exe (MEmu)")
+    ap.add_argument("--emulator", choices=("ldplayer", "memu"), default=None)
     ap.add_argument("--db", default="accounts.db")
     ap.add_argument("--source", action="append", metavar="NAME",
                     help="ten may nguon (lap lai de them nhieu, mac dinh 'roblox')")
@@ -242,7 +244,7 @@ def main() -> int:
         print(f"[FAIL] Khong co user:pass nao trong {args.file}")
         return 1
 
-    console = LDConsole(args.ldconsole)
+    console = open_emulator(args.ldconsole, kind=args.emulator)
     sources = args.source or [rf.SOURCE]
     try:
         results = run_login(console, accounts, sources, db=args.db, stagger=args.stagger)

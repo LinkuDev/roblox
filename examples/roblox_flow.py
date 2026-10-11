@@ -17,12 +17,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ldauto import (AccountStore, Farm, Instance, LDConsole, Log, Spec,  # noqa: E402
-                    ensure_warning_prefix, report, run_parallel)
+from ldauto import (AccountStore, Emulator, Farm, Instance, LDConsole, Log,  # noqa: E402
+                    Spec, ensure_warning_prefix, open_emulator, report,
+                    run_parallel)
 from ldauto import window  # noqa: E402
 
 # --------------------------------------------------------------------------
+# Chuong trinh dong lenh cua emulator. Dua duong dan nao thi dung emulator do:
+# dnconsole.exe / ldconsole.exe -> LDPlayer, memuc.exe -> MEmu (xem open_emulator).
 LDCONSOLE = r"C:\LDPlayer\LDPlayer9\dnconsole.exe"
+MEMUC = r"C:\Program Files\Microvirt\MEmu\memuc.exe"
 
 SOURCE = "roblox"          # may ao goc, da cai + dang nhap san ExpressVPN
 PREFIX = "bot"             # clone: bot0, bot1, bot2
@@ -817,7 +821,7 @@ def flow(inst: Instance, log: Log) -> None:
     log(f"dung sau {n} vong, tao duoc {len(made)} tai khoan: {made}")
 
 
-def build_instances(console: LDConsole, sources: list[str] | None = None,
+def build_instances(console: Emulator, sources: list[str] | None = None,
                     do_clone: bool = False) -> list[Instance]:
     """Voi MOI may nguon: lay chinh no + clone CLONES may tu no.
 
@@ -865,7 +869,7 @@ def build_instances(console: LDConsole, sources: list[str] | None = None,
     return instances
 
 
-def run_farm(console: LDConsole, *, sources: list[str] | None = None,
+def run_farm(console: Emulator, *, sources: list[str] | None = None,
              do_clone: bool = False, arrange: bool = True,
              clear_mode: str = "all", reuse: bool = False,
              stagger: float | None = None) -> list:
@@ -936,7 +940,10 @@ def main() -> int:
                          f"co lo node nao khong)")
     ap.add_argument("--dump-index", type=int, default=None,
                     help="may ao nao de dump (mac dinh: may goc)")
-    ap.add_argument("--ldconsole", default=LDCONSOLE)
+    ap.add_argument("--ldconsole", "--console", dest="ldconsole", default=LDCONSOLE,
+                    help="dnconsole.exe (LDPlayer) hoac memuc.exe (MEmu)")
+    ap.add_argument("--emulator", choices=("ldplayer", "memu"), default=None,
+                    help="ep loai emulator khi ten file khong theo quy uoc")
     ap.add_argument("--rounds", type=int, default=ROUNDS,
                     help="so vong moi may ao chay (0 = khong gioi han, Ctrl+C de dung)")
     ap.add_argument("--round-pause", type=float, default=ROUND_PAUSE,
@@ -974,7 +981,8 @@ def main() -> int:
             print(f"  hwnd={hwnd:<10} class={cls:<28} title={title!r}")
         return 0
 
-    console = LDConsole(args.ldconsole)
+    console = open_emulator(args.ldconsole, kind=args.emulator)
+    print(f"Emulator: {console.kind} ({console.path})")
 
     ROUNDS, ROUND_PAUSE, SLOW = args.rounds, args.round_pause, args.slow
     if SLOW != 1.0:
@@ -1020,8 +1028,8 @@ def main() -> int:
             print("   khong dung widget Android, uiautomator khong nhin thay gi ben trong.")
             print("   Phan nay phai dieu khien bang anh mau: inst.tap_image(...).")
             print(f"\n   Lay anh de cat mau:")
-            port = 5555 + idx * 2
-            print(f'   "C:\\LDPlayer\\LDPlayer9\\adb.exe" -s 127.0.0.1:{port} '
+            port = console.adb_port_for(idx)
+            print(f'   "{console.adb_exe or "adb.exe"}" -s 127.0.0.1:{port} '
                   f'exec-out screencap -p > shot.png')
         else:
             print("\n-> Co node doc duoc: dung inst.tap_node(text=..., res_id=...)")

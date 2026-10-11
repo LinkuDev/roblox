@@ -2,6 +2,7 @@
 
 Chi lo phan quan ly may ao: tao / sua cau hinh / bat / tat.
 Phan dieu khien ben trong Android nam o instance.py.
+Mat chung voi cac emulator khac nam o emulator.py.
 """
 
 from __future__ import annotations
@@ -10,22 +11,13 @@ import csv
 import subprocess
 import warnings
 import time
-from dataclasses import dataclass
 from pathlib import Path
 
-# ldconsole in ra theo locale cua Windows, khong phai lu utf-8.
-# May Trung/Viet thuong la gbk hoac cp1258 -> decode cung utf-8 se no.
-_ENCODINGS = ("utf-8", "gbk", "cp1252", "latin-1")
-
-
-def _decode(raw: bytes) -> str:
-    for enc in _ENCODINGS:
-        try:
-            return raw.decode(enc)
-        except UnicodeDecodeError:
-            continue
-    return raw.decode("latin-1", errors="replace")
-
+# Dinh nghia dung chung cho moi emulator. Import lai o day de code cu dang lay
+# chung tu ldauto.console van chay.
+from .emulator import (  # noqa: F401
+    Emulator, EmulatorError, InstanceInfo, LDConsoleError, _ENCODINGS, _decode,
+)
 
 # AutoLDPlayer (LDPlayer.cs) ghi ro bo gia tri ldconsole nhan:
 #   --cpu <1|2|3|4>   --memory <512|1024|2048|4096|8192>
@@ -35,32 +27,14 @@ _MEMORY_CHOICES = {512, 1024, 1536, 2048, 3072, 4096, 6144, 8192}
 _CPU_CHOICES = {1, 2, 3, 4, 6, 8}
 
 
-class LDConsoleError(RuntimeError):
-    pass
+class LDConsole(Emulator):
+    kind = "ldplayer"
+    process_names = ("dnplayer.exe", "dnconsole.exe", "ldconsole.exe", "adb.exe")
 
+    def adb_port_for(self, index: int) -> int:
+        # LDPlayer: 0->5555, 1->5557, 2->5559... Sai neu da doi cong trong settings.
+        return 5555 + index * 2
 
-@dataclass
-class InstanceInfo:
-    """Mot dong cua `ldconsole list2`."""
-
-    index: int
-    name: str
-    top_window_handle: int
-    bind_window_handle: int
-    android_started: bool
-    pid: int
-    vbox_pid: int
-    width: int | None = None
-    height: int | None = None
-    dpi: int | None = None
-
-    @property
-    def running(self) -> bool:
-        # pid == -1 nghia la may ao chua bat.
-        return self.pid not in (-1, 0)
-
-
-class LDConsole:
     def __init__(self, ldconsole: str | Path, timeout: float = 60.0):
         self.path = Path(ldconsole)
         if not self.path.exists():

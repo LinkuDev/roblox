@@ -58,6 +58,10 @@ pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --hidden-import roblox_flow ^
   --hidden-import roblox_login ^
   --hidden-import ldauto.console ^
+  --hidden-import ldauto.emulator ^
+  --hidden-import ldauto.memu ^
+  --hidden-import ldauto.adbsetup ^
+  --hidden-import ldauto.ldconfig ^
   --hidden-import ldauto.farm ^
   --hidden-import ldauto.flow ^
   --hidden-import ldauto.instance ^

@@ -1,4 +1,4 @@
-"""ldauto -- tu dong hoa LDPlayer.
+"""ldauto -- tu dong hoa emulator Android (LDPlayer, MEmu).
 
 Import LUOI (PEP 562): nap ldauto khong keo theo adbutils/cv2 tru khi that su
 dung toi Instance/Farm/flow. Nho vay cong cu chi doc DB (xem/xuat tai khoan)
@@ -12,7 +12,10 @@ from typing import TYPE_CHECKING
 
 # ten -> module chua no
 _LAZY = {
-    "LDConsole": ".console", "LDConsoleError": ".console", "InstanceInfo": ".console",
+    "LDConsole": ".console", "LDConsoleError": ".emulator", "InstanceInfo": ".emulator",
+    "Emulator": ".emulator", "EmulatorError": ".emulator",
+    "open_emulator": ".emulator", "detect_kind": ".emulator",
+    "MemuConsole": ".memu",
     "Farm": ".farm", "Spec": ".farm",
     "FlowResult": ".flow", "Log": ".flow", "report": ".flow", "run_parallel": ".flow",
     "Instance": ".instance",
@@ -39,7 +42,10 @@ def __dir__() -> list[str]:
 if TYPE_CHECKING:  # cho type checker / IDE thay ten that
     from .accounts import (Account, AccountStore, random_password,
                            random_username)
-    from .console import InstanceInfo, LDConsole, LDConsoleError
+    from .console import LDConsole
+    from .emulator import (Emulator, EmulatorError, InstanceInfo, LDConsoleError,
+                           detect_kind, open_emulator)
+    from .memu import MemuConsole
     from .cookie import ensure_warning_prefix, read_roblosecurity, verify_cookie
     from .farm import Farm, Spec
     from .flow import FlowResult, Log, report, run_parallel
