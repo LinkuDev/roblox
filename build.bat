@@ -53,6 +53,8 @@ REM   nhe di ~80MB. (cv2/numpy da chuyen sang lazy import trong instance.py nen
 REM   bo di van chay; khi nao can tap_image() thi cai lai + bo 2 dong exclude.)
 REM   PIL PHAI GIU: adbutils import no o top-level, bo la exe crash luc mo.
 REM Loai apkutils2: adbutils keo vao de phan tich APK, minh khong dung.
+echo.
+echo === Dang build (khoang 30-90s). Log day du ghi vao build.log ===
 pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --paths examples ^
   --hidden-import roblox_flow ^
@@ -76,11 +78,16 @@ pyinstaller --onefile --windowed --name RobloxFarm --clean ^
   --exclude-module apkutils2 ^
   --exclude-module apkutils ^
   %ADBARGS% ^
-  main.py
+  main.py > "%~dp0build.log" 2>&1
+REM Ghi log ra file de khi hong con LOC duoc dong loi that ra cuoi man hinh.
+REM Truoc day loi that troi len tren, duoi cung chi con khoi goi y chung --
+REM nguoi doc nhin cuoi man hinh, thay goi y, tuong do la loi.
+set "PYI_RC=%errorlevel%"
+type "%~dp0build.log"
 
 REM Phai kiem tra: khong co doan nay thi build hong van in "Xong", va lan sau
 REM chay nham exe cu ma khong biet.
-if errorlevel 1 goto :hong
+if not "%PYI_RC%"=="0" goto :hong
 if not exist "dist\RobloxFarm.exe" goto :hong
 
 echo.
@@ -97,13 +104,45 @@ exit /b 0
 
 :hong
 echo.
-echo === BUILD HONG -- dist\RobloxFarm.exe KHONG duoc tao ra ===
+echo ============================================================
+echo  BUILD HONG -- dist\RobloxFarm.exe KHONG duoc tao ra
+echo ============================================================
+echo  Loi THAT, loc tu build.log:
 echo.
-echo Neu loi la "PermissionError: [WinError 5] Access is denied":
-echo   file dang bi khoa. Thu lan luot:
-echo     1. taskkill /F /IM RobloxFarm.exe
-echo     2. dong cua so Explorer dang mo thu muc dist
-echo     3. tam tat Windows Defender realtime scan
+findstr /i /c:"Error" /c:"Traceback" /c:"denied" /c:"No module named" "%~dp0build.log"
 echo.
+echo  10 dong cuoi cua build.log:
+powershell -NoProfile -Command "Get-Content '%~dp0build.log' -Tail 10"
+echo.
+
+REM Hai benh khac nhau cung bao "Access is denied", phai tach ra:
+REM  - UpdateResource hong: exe VUA TAO bi khoa roi bien mat -> antivirus quet
+REM    va cach ly no. Bootloader PyInstaller hay bi Defender nhan nham.
+REM  - con lai: exe cu dang chay hoac Explorer dang giu file.
+findstr /i /c:"UpdateResource" "%~dp0build.log" >nul
+if not errorlevel 1 goto :hint_av
+findstr /i /c:"WinError 5" /c:"Access is denied" "%~dp0build.log" >nul
+if not errorlevel 1 goto :hint_locked
+goto :hint_done
+
+:hint_av
+echo  -^> Antivirus (thuong la Windows Defender) vua CACH LY file exe moi tao.
+echo     Dau hieu: exe bi khoa mot luc roi bien mat ("cannot find the file").
+echo     Bootloader cua PyInstaller hay bi nhan nham la ma doc.
+echo.
+echo     1. Xac nhan: Windows Security ^> Virus ^& threat protection ^> Protection history
+echo     2. Loai tru thu muc nay khoi Defender (PowerShell chay quyen Administrator):
+echo          Add-MpPreference -ExclusionPath "%~dp0"
+echo     3. Chay lai build.bat
+goto :hint_done
+
+:hint_locked
+echo  -^> File exe dang bi khoa. Thu lan luot:
+echo       1. taskkill /F /IM RobloxFarm.exe
+echo       2. dong cua so Explorer dang mo thu muc dist
+
+:hint_done
+echo.
+echo  Dan khoi tu "BUILD HONG" tro xuong cho nguoi sua.
 pause
 exit /b 1

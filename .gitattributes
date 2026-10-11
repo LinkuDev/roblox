@@ -1,0 +1,6 @@
+# File .bat PHAI xuong dong kieu Windows (CRLF). cmd.exe co loi da biet: voi
+# file xuong dong kieu Linux (LF), `goto :nhan` doi khi khong tim thay nhan du
+# nhan co do -- build.bat dung nhieu goto nen dinh la hong ngau nhien.
+# Git luu LF trong repo, chi doi sang CRLF luc checkout -- khong lam ban diff.
+*.bat text eol=crlf
+*.cmd text eol=crlf
