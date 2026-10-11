@@ -568,6 +568,11 @@ class App:
         """In moi thu can de so may chay duoc voi may khong chay duoc."""
         self.btn_diag.config(state="disabled")
         log = rf.Log("diag")
+        # Dung cau hinh adb Y NHU luc bam Bat dau roi moi do. Thieu buoc nay thi
+        # bam Kiem tra truoc Bat dau se bao ADBUTILS_ADB_PATH / cong server la
+        # "(chua dat)" -- dung la chua dat, nhung khong phai thu se chay that.
+        # Goi o day (luong chinh) vi no doc bien tkinter.
+        self._apply_adb_port()
 
         def work():
             import socket
