@@ -20,7 +20,7 @@ Da kiem chung tren may that (examples/memu_check.py):
     chay    start -> Android boot -> ADB o 21503 (dung quy uoc) -> wm size 400x500
     root    `su 0 <lenh>` (giong LDPlayer; nhanh `su -c` de cho ban MEmu khac)
     clone   tat nguon -> clone -> tim index moi bang so danh sach -> rename
-            -> vm_dir "MemuHyperv VMs\MEmu_<i>" dung -> remove
+            -> vm_dir "MemuHyperv VMs\\MEmu_<i>" dung -> remove
     khoa    fps, enable_audio dung ten: chi co gia tri SAU lan boot dau tien,
             truoc do memuc tra "No value set!"
 CHUA kiem chung: randomize, installapp, startapp/stopapp.
