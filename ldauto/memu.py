@@ -14,9 +14,14 @@ nguyen xi. Khac LDPlayer o nhung cho sau, va day la nhung cho de vap:
   - Khong co global setting nhu LDPlayer: fps/audio dat theo TUNG may ao.
   - ADB luon bat san, khong co setting "ADB debugging" nhu LDPlayer.
 
-CHUA KIEM CHUNG tren may that luc viet. Cu phap lenh va dinh dang output viet
-theo tai lieu memuc; chay examples/memu_check.py de xem output that, sai cho
-nao thi sua o day.
+Da kiem chung tren may that: listvms, getconfigex, isvmrunning (doc). Cac lenh
+GHI (setconfigex, start, clone, rename...) chua -- chay examples/memu_check.py
+voi --prepare / --start / --test-clone de thu.
+
+Dinh dang that do duoc:
+    listvms        0,MEmu,0,0,0          (5 cot: index,ten,hwnd,dang_chay,pid)
+    getconfigex    Value: 1280  |  Value: "327A..."  |  No value set!
+    isvmrunning    Not Running
 """
 
 from __future__ import annotations
@@ -176,10 +181,18 @@ class MemuConsole(Emulator):
         return None
 
     def get_config(self, instance: int | str, key: str) -> str:
-        """Gia tri mot khoa cau hinh. Lay so/chu cuoi dong vi output co tien to."""
+        """Gia tri mot khoa cau hinh, "" neu chua dat.
+
+        Output that cua memuc (do tren may that):
+            Value: 1280
+            Value: "327A4B9BEF53"      <- mot so khoa co ngoac kep
+            No value set!              <- khoa chua dat, KHONG phai loi
+        """
         out = self.run("getconfigex", "-i", self._idx(instance), key)
-        last = out.strip().splitlines()[-1] if out.strip() else ""
-        return last.split(":", 1)[-1].strip()
+        last = out.strip().splitlines()[-1].strip() if out.strip() else ""
+        if not last.lower().startswith("value:"):
+            return ""                       # "No value set!" va moi thu khac
+        return last.split(":", 1)[1].strip().strip('"')
 
     def _cfg_int(self, index: int, key: str) -> int | None:
         try:

@@ -12,6 +12,9 @@ Bat mot may ao va thu ADB + root tren no:
 
 Thu clone (TAO mot may ao moi ten _memu_check roi XOA di):
     python examples\\memu_check.py --test-clone 0
+
+Cau hinh may ao cho flow: 400x500 @160, bat root, doi ten:
+    python examples\\memu_check.py --prepare 0 --rename roblox
 """
 
 import argparse
@@ -69,6 +72,10 @@ def main() -> int:
                     help="bat may ao nay roi thu ADB + root")
     ap.add_argument("--test-clone", type=int, metavar="INDEX",
                     help="clone may ao nay thanh _memu_check roi xoa (CHAM, vai phut)")
+    ap.add_argument("--prepare", type=int, metavar="INDEX",
+                    help="dat 400x500 @160 + bat root cho may ao nay (TAT may ao truoc)")
+    ap.add_argument("--rename", metavar="TEN",
+                    help="kem --prepare: doi ten may ao (flow tim may nguon ten 'roblox')")
     args = ap.parse_args()
 
     # ------------------------------------------------------------------
@@ -122,9 +129,41 @@ def main() -> int:
     record(OK, f"is_running({first}) = {memu.is_running(first)} (doc tu listvms)")
 
     # ------------------------------------------------------------------
+    if args.prepare is not None:
+        idx = args.prepare
+        step(5, f"Cau hinh may ao index={idx} cho flow (400x500 @160, root)")
+        try:
+            if memu.is_running(idx):
+                print("  may ao dang chay -> tat truoc (doi cau hinh luc chay khong an)")
+                memu.quit(idx)
+                memu.wait_stopped(idx, settle=3)
+            memu.modify(idx, width=400, height=500, dpi=160, root=True)
+            record(OK, "da gui setconfigex")
+        except Exception:
+            record(FAIL, "modify() hong:")
+            traceback.print_exc()
+        else:
+            # Doc LAI de chac setconfigex that su an -- memuc co the nhan khoa
+            # sai ten ma khong bao loi gi.
+            for key, want in (("resolution_width", "400"), ("resolution_height", "500"),
+                              ("vbox_dpi", "160"), ("enable_su", "1"),
+                              ("is_customed_resolution", "1")):
+                got = memu.get_config(idx, key)
+                record(OK if got == want else FAIL,
+                       f"{key:24} = {got!r:8} (can {want!r})")
+        if args.rename:
+            try:
+                memu.rename(idx, args.rename)
+                ok = memu._find_fast(args.rename) is not None
+                record(OK if ok else FAIL, f"doi ten -> {args.rename!r}")
+            except Exception:
+                record(FAIL, "rename hong:")
+                traceback.print_exc()
+
+    # ------------------------------------------------------------------
     if args.start is not None:
         idx = args.start
-        step(5, f"Bat may ao index={idx} va doi Android boot")
+        step(6, f"Bat may ao index={idx} va doi Android boot")
         try:
             t0 = time.monotonic()
             memu.launch(idx)
@@ -145,7 +184,7 @@ def main() -> int:
             print(f'   Xem cong that: "{memu.adb_exe or "adb.exe"}" devices')
             return 1
 
-        step(6, "Thu ADB that su goi duoc")
+        step(7, "Thu ADB that su goi duoc")
         try:
             record(OK, f"wm size -> {inst.sh('wm size').strip()!r}")
             record(OK, f"model  -> {inst.sh('getprop ro.product.model').strip()!r}")
@@ -153,7 +192,7 @@ def main() -> int:
             record(FAIL, "shell hong:")
             traceback.print_exc()
 
-        step(7, "Root -- can de lay cookie")
+        step(8, "Root -- can de lay cookie")
         form = inst._detect_su()
         if form == "none":
             record(WARN, "KHONG co root. Lay cookie se that bai.")
@@ -165,7 +204,7 @@ def main() -> int:
     # ------------------------------------------------------------------
     if args.test_clone is not None:
         src = args.test_clone
-        step(8, f"Thu clone index={src} -> _memu_check (roi xoa)")
+        step(9, f"Thu clone index={src} -> _memu_check (roi xoa)")
         if memu.find("_memu_check"):
             print("  con sot _memu_check tu lan truoc -> xoa truoc")
             memu.remove("_memu_check")
