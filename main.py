@@ -492,8 +492,22 @@ class App:
         p = filedialog.askopenfilename(
             title="Chon dnconsole.exe (LDPlayer) hoac memuc.exe (MEmu)",
                                        filetypes=[("exe", "*.exe"), ("all", "*.*")])
-        if p:
-            self.var_ld.set(p)
+        if not p:
+            return
+        # Chon nham file GIAO DIEN (MEmu.exe, dnplayer.exe) thi moi lenh mo cua
+        # so emulator roi dung im toi het timeout. Sua ngay o day va HIEN RA cho
+        # nguoi dung thay, khong am tham dung mot file khac voi file dang hien.
+        try:
+            cli = str(rf.resolve_cli(p))
+        except FileNotFoundError as exc:
+            messagebox.showerror("Chon nham file", str(exc))
+            return
+        if Path(cli) != Path(p):
+            messagebox.showinfo(
+                "Da doi file",
+                f"Ban chon:  {Path(p).name}  (chuong trinh giao dien)\n"
+                f"Doi sang:  {Path(cli).name}  (chuong trinh dong lenh)\n\n{cli}")
+        self.var_ld.set(cli)
 
     def _pick_ldplayer(self):
         p = filedialog.askopenfilename(title="Chon LDPlayer.exe / dnplayer.exe",
@@ -612,7 +626,11 @@ class App:
                 except Exception as exc:
                     emu, emu_infos = None, []
                     log(f"  [!] khong mo duoc emulator: {type(exc).__name__}: {exc}")
-                log(f"emulator: {emu.kind if emu else '?'}")
+                log(f"emulator: {emu.kind if emu else '?'}"
+                    + (f" ({emu.path})" if emu else ""))
+                if emu and Path(emu.path) != Path(self.var_ld.get()):
+                    log(f"  [!] o Console la {Path(self.var_ld.get()).name} (giao dien) "
+                        f"-> dang dung {Path(emu.path).name}. Nen chon lai cho dung.")
                 ports = [emu.adb_port_for(i.index) for i in emu_infos] if emu else []
                 opened = []
                 for port in ports:
@@ -649,6 +667,14 @@ class App:
                 # 4. emulator thay may ao nao
                 log(f"emulator thay {len(emu_infos)} may ao:")
                 for i in emu_infos[:20]:
+                    # MEmu: listvms khong co do phan giai, phai hoi rieng qua
+                    # find(). Khong lam thi in ra NonexNone@None, trong nhu may
+                    # ao chua cau hinh trong khi thuc ra van dung 400x500@160.
+                    if i.width is None:
+                        try:
+                            i = emu.find(i.index) or i
+                        except Exception:
+                            pass
                     port = emu.adb_port_for(i.index)
                     log(f"  index={i.index:<4} {i.name!r:22} chay={i.running} "
                         f"cong={port}{' MO' if port in opened else ''} "

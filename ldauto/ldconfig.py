@@ -32,13 +32,20 @@ def config_dir(ld_dir: str | Path) -> Path:
     return ld_dir / "vms" / "config"
 
 
-def config_files(ld_dir: str | Path) -> list[Path]:
+def config_files(ld_dir: str | Path, indices=None) -> list[Path]:
+    """File cau hinh may ao. `indices` = chi lay cac may do (None = tat ca).
+
+    Khong co `indices`: lay ca leidian.config, la cau hinh MAC DINH cho may ao
+    tao moi -- sua ca no thi may clone sau nay khoi phai sua lai.
+    """
     d = config_dir(ld_dir)
     if not d.is_dir():
         return []
-    # leidian.config la cau hinh MAC DINH cho may ao tao moi -- sua ca no thi
-    # may clone sau nay khoi phai sua lai.
-    return sorted(d.glob("leidian*.config"))
+    files = sorted(d.glob("leidian*.config"))
+    if indices is not None:
+        want = {f"leidian{i}.config" for i in indices}
+        files = [f for f in files if f.name in want]
+    return files
 
 
 def read_adb_keys(path: str | Path) -> dict[str, object]:
@@ -59,13 +66,16 @@ def set_adb_debug(
     ld_dir: str | Path,
     value: int = ADB_LOCAL,
     log=print,
+    indices=None,
 ) -> tuple[int, int]:
-    """Bat ADB debugging cho MOI may ao. Tra ve (so file da sua, so file xem qua).
+    """Bat ADB debugging. Tra ve (so file da sua, so file xem qua).
+
+    indices: chi sua cac may ao do (None = moi may + cau hinh mac dinh).
 
     May ao phai DANG TAT: LDPlayer giu cau hinh trong bo nho va ghi de luc
     thoat, sua trong khi no dang chay thi mat trang.
     """
-    files = config_files(ld_dir)
+    files = config_files(ld_dir, indices)
     if not files:
         log(f"khong thay file config nao trong {config_dir(ld_dir)}")
         return 0, 0

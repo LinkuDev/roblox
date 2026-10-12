@@ -191,6 +191,15 @@ class Emulator:
             time.sleep(poll)
         raise TimeoutError(f"{instance} khong boot xong trong {timeout}s")
 
+    def ensure_adb(self, indices=None, log=print) -> int:
+        """Bat quyen truy cap ADB cho cac may ao `indices`. Tra ve so may da sua.
+
+        Mac dinh khong lam gi: emulator nao ADB luon bat (MEmu -- da kiem tren
+        may that) thi khong co gi de bat. Emulator nao co setting rieng thi ghi
+        de ham nay. Goi luc may ao DANG TAT.
+        """
+        return 0
+
     def global_setting(self, **kw) -> None:
         """Setting chung cho ca emulator. Mac dinh: khong co gi de dat."""
 
@@ -212,6 +221,43 @@ class Emulator:
             return 0
 
 
+# Ten chuong trinh DONG LENH cua tung emulator. Cung thu muc con co chuong
+# trinh GIAO DIEN (MEmu.exe, dnplayer.exe...). Chon nham file giao dien thi moi
+# lenh mo cua so emulator ra roi dung im mai, toi khi het timeout 60s -- nhin
+# tu ngoai giong het "emulator bat duoc nhung khong dieu khien duoc".
+_CLI_NAMES = {
+    "memu": ("memuc.exe",),
+    "ldplayer": ("ldconsole.exe", "dnconsole.exe"),
+}
+_GUI_NAMES = {
+    "memu.exe", "memuconsole.exe", "memuheadless.exe",
+    "dnplayer.exe", "ldplayer.exe", "dnmultiplayer.exe", "ldmultiplayer.exe",
+}
+
+
+def resolve_cli(path: str | Path, kind: str | None = None) -> Path:
+    """Duong dan toi chuong trinh DONG LENH, sua lai neu lo chon file giao dien.
+
+    MEmu.exe -> memuc.exe, dnplayer.exe -> dnconsole.exe, cung thu muc. Dua ca
+    thu muc cai dat cung duoc. Ten la thi tin nguoi dung, tra nguyen.
+    """
+    path = Path(path)
+    kind = (kind or detect_kind(path)).lower()
+    names = _CLI_NAMES.get(kind, ())
+    if path.name.lower() in names:
+        return path
+    folder = path if path.is_dir() else path.parent
+    for n in names:
+        if (folder / n).exists():
+            return folder / n
+    if path.name.lower() in _GUI_NAMES:
+        raise FileNotFoundError(
+            f"{path.name} la chuong trinh GIAO DIEN cua emulator, khong dieu khien "
+            f"duoc bang dong lenh. Can {' / '.join(names)} -- nhung khong thay "
+            f"trong {folder}.")
+    return path
+
+
 def detect_kind(path: str | Path) -> str:
     """Doan emulator tu ten chuong trinh dong lenh: 'memu' hoac 'ldplayer'."""
     name = Path(path).name.lower()
@@ -231,6 +277,7 @@ def open_emulator(
     ldconsole.exe thi ra LDPlayer. `kind` de ep khi ten file khong theo quy uoc.
     """
     kind = (kind or detect_kind(path)).lower()
+    path = resolve_cli(path, kind)
     if kind == "memu":
         from .memu import MemuConsole
         return MemuConsole(path, timeout=timeout)

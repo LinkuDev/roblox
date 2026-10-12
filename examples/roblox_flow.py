@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ldauto import (AccountStore, Emulator, Farm, Instance, LDConsole, Log,  # noqa: E402
                     Spec, ensure_warning_prefix, open_emulator, report,
-                    run_parallel)
+                    resolve_cli, run_parallel)
 from ldauto import window  # noqa: E402
 
 # --------------------------------------------------------------------------
@@ -923,6 +923,13 @@ def run_farm(console: Emulator, *, sources: list[str] | None = None,
                     console.quit(i.index)
                     print(f"[{i.index}] khong tat trong 90s -> bo qua")
             print("da tat xong\n")
+
+        # Bat ADB debugging cho dung cac may sap chay. Dat o day vi day la luc
+        # chac chan chung DANG TAT -- sua luc dang chay thi emulator ghi de mat.
+        # MEmu luon bat ADB nen ham nay khong lam gi.
+        n = console.ensure_adb([i.index for i in instances], log=print)
+        if n:
+            print(f"da bat ADB debugging cho {n} may ao\n")
 
     print(f"Vong lap: {ROUNDS or 'khong gioi han'} vong/may ao, "
           f"cho {ROUND_PAUSE:.0f}s sau khi bam Done")

@@ -218,6 +218,11 @@ def run_login(console: Emulator, accounts: list[tuple[str, str]],
             except TimeoutError:
                 console.quit(i.index)
 
+    # Giong luong tao acc: bat ADB debugging luc may chac chan dang tat.
+    n = console.ensure_adb([i.index for i in instances], log=print)
+    if n:
+        print(f"da bat ADB debugging cho {n} may ao")
+
     results = run_parallel(instances, worker, stagger=stagger)
     print(f"\nKho: {STORE.count()} ban ghi | login OK: {STORE.count('login_ok')} | "
           f"fail: {STORE.count('login_failed')}")

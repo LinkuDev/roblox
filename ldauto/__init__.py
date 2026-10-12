@@ -15,6 +15,7 @@ _LAZY = {
     "LDConsole": ".console", "LDConsoleError": ".emulator", "InstanceInfo": ".emulator",
     "Emulator": ".emulator", "EmulatorError": ".emulator",
     "open_emulator": ".emulator", "detect_kind": ".emulator",
+    "resolve_cli": ".emulator",
     "MemuConsole": ".memu",
     "Farm": ".farm", "Spec": ".farm",
     "FlowResult": ".flow", "Log": ".flow", "report": ".flow", "run_parallel": ".flow",
@@ -44,7 +45,7 @@ if TYPE_CHECKING:  # cho type checker / IDE thay ten that
                            random_username)
     from .console import LDConsole
     from .emulator import (Emulator, EmulatorError, InstanceInfo, LDConsoleError,
-                           detect_kind, open_emulator)
+                           detect_kind, open_emulator, resolve_cli)
     from .memu import MemuConsole
     from .cookie import ensure_warning_prefix, read_roblosecurity, verify_cookie
     from .farm import Farm, Spec

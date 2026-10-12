@@ -35,6 +35,18 @@ class LDConsole(Emulator):
         # LDPlayer: 0->5555, 1->5557, 2->5559... Sai neu da doi cong trong settings.
         return 5555 + index * 2
 
+    def ensure_adb(self, indices=None, log=print) -> int:
+        """Bat "ADB debugging" cho cac may ao `indices` bang cach sua file config.
+
+        Day la setting CUA TUNG MAY AO tren LDPlayer, mac dinh co the dang tat.
+        Tat thi cong ADB van mo nhung bat tay khong bao gio xong -> adb bao
+        'device offline' mai. ldconsole khong co lenh nao bat no, nen sua thang
+        file vms\\config\\leidian<N>.config.
+        """
+        from . import ldconfig
+        changed, _ = ldconfig.set_adb_debug(self.install_dir, log=log, indices=indices)
+        return changed
+
     def __init__(self, ldconsole: str | Path, timeout: float = 60.0):
         self.path = Path(ldconsole)
         if not self.path.exists():
