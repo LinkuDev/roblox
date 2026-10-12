@@ -131,6 +131,9 @@ class MemuConsole(Emulator):
                 cmd,
                 capture_output=True,
                 timeout=timeout or self.timeout,
+                # exe build --windowed KHONG co stdin. Lenh nao hoi xac nhan se
+                # cho cau tra loi mai mai; DEVNULL cho no nhan EOF ngay va thoat.
+                stdin=subprocess.DEVNULL,
                 # memuc tim cac DLL va file cau hinh theo thu muc hien tai.
                 cwd=str(self.path.parent),
                 creationflags=_CREATE_NO_WINDOW,
@@ -265,61 +268,114 @@ class MemuConsole(Emulator):
         self.run("create", timeout=600)
         self.rename(self._wait_new_index(before, 120), name)
 
+    @property
+    def vms_root(self) -> Path:
+        return self.path.parent / "MemuHyperv VMs"
+
+    def _vm_dirs(self) -> set[str]:
+        try:
+            return {d.name for d in self.vms_root.iterdir() if d.is_dir()}
+        except OSError:
+            return set()
+
     def copy_from(
         self,
         name: str,
         source: int | str,
         timeout: float = 1800.0,
         appear_timeout: float = 120.0,
-        settle_timeout: float = 1800.0,
+        stall: float = 180.0,
     ) -> None:
         """Nhan ban may ao `source` roi dat ten `name`.
 
         `memuc clone` KHONG cho dat ten: may ao moi tu lay ten rieng. Nen so
         danh sach index truoc va sau de biet may nao vua sinh ra, roi rename.
 
-        Nhu LDConsole.copy_from, khong tin ma tra ve cua lenh clone -- xac nhan
-        bang thu nhin thay duoc: may ao moi co hien ra khong, va o dia cua no
-        da ngung phinh chua.
+        Clone chay KHONG CHAN va theo doi qua O DIA: thu muc may ao moi hien ra
+        trong "MemuHyperv VMs" roi phinh dan. Moi ~10s in tien do; o dia dung
+        im `stall` giay ma lenh chua xong thi coi nhu KET, giet lenh va bao loi.
+        Truoc day lenh chay chan voi timeout 30 phut -- ket la im lang ca nua
+        tieng, nhin y het treo. Khong goi `memuc listvms` trong luc clone: memuc
+        co the giu khoa, va vong theo doi se ket theo.
+
+        Nhu LDConsole.copy_from, khong tin ma tra ve -- xac nhan bang thu nhin
+        thay duoc: may ao moi co hien trong listvms khong.
         """
         src = self._idx(source)
         before = {i.index for i in self.list2()}
-        rc_error: LDConsoleError | None = None
+        dirs_before = self._vm_dirs()
+
+        cmd = [str(self.path), "clone", "-i", str(src)]
         try:
-            self.run("clone", "-i", src, timeout=timeout)
-        except LDConsoleError as exc:
-            rc_error = exc
+            proc = subprocess.Popen(
+                cmd, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                cwd=str(self.path.parent), creationflags=_CREATE_NO_WINDOW,
+            )
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 740:
+                raise LDConsoleError(f"{self.path.name} doi quyen Administrator.") from exc
+            raise
+
+        t0 = time.monotonic()
+        last_report = t0
+        last_size, last_growth = -1, t0
+        new_dir: Path | None = None
+
+        def abort(why: str) -> None:
+            proc.kill()
+            out = _decode(proc.communicate()[0] or b"").strip()
+            raise LDConsoleError(
+                f"clone {name} tu {source}: {why}\n"
+                f"memuc in ra: {out or '(khong in gi)'}\n"
+                f"-> Mo Task Manager, tat memuc.exe / MEmuManage.exe con sot tu lan "
+                f"truoc, dong cua so Multi-MEmu neu dang mo, roi chay lai.")
+
+        while proc.poll() is None:
+            time.sleep(3)
+            now = time.monotonic()
+            if new_dir is None:
+                fresh = sorted(self._vm_dirs() - dirs_before)
+                if fresh:
+                    new_dir = self.vms_root / fresh[-1]
+            size = self._dir_size(new_dir) if new_dir else 0
+            if size != last_size:
+                last_size, last_growth = size, now
+
+            if now - last_report >= 10:
+                where = f"{new_dir.name} {size / 1e9:.2f} GB" if new_dir else "chua thay thu muc may ao moi"
+                print(f"  [{name}] dang clone {now - t0:.0f}s -- {where}")
+                last_report = now
+
+            if now - t0 > timeout:
+                abort(f"qua {timeout:.0f}s chua xong")
+            if new_dir is None and now - t0 > appear_timeout:
+                abort(f"{appear_timeout:.0f}s ma chua thay may ao moi nao bat dau chep "
+                      f"-- memuc dang cho mot thu gi do hoac bi lenh khac giu khoa")
+            if new_dir is not None and now - last_growth > stall:
+                abort(f"o dia dung im o {size / 1e9:.2f} GB suot {stall:.0f}s ma lenh chua xong")
+
+        out = _decode(proc.stdout.read() if proc.stdout else b"").strip()
+        rc = proc.returncode
+        failed = rc != 0 or self._looks_error(out)
 
         try:
             new_idx = self._wait_new_index(before, appear_timeout)
         except LDConsoleError:
-            raise rc_error or LDConsoleError(
-                f"clone {name} tu {source}: khong thay may ao moi sau {appear_timeout}s")
-        if rc_error:
-            print(f"  [{name}] memuc bao loi nhung may ao da tao duoc "
-                  f"-> di tiep ({str(rc_error).splitlines()[0]})")
+            raise LDConsoleError(
+                f"clone {name} tu {source}: memuc xong (rc={rc}) nhung khong thay may ao "
+                f"moi trong listvms.\nmemuc in ra: {out or '(khong in gi)'}")
+        if failed:
+            print(f"  [{name}] memuc bao loi (rc={rc}) nhung may ao da tao duoc -> di tiep")
 
         self.rename(new_idx, name)
-
-        d = self.vm_dir(new_idx)
-        if d is None:
-            return
-        last, stable = -1, 0
-        deadline = time.monotonic() + settle_timeout
-        while time.monotonic() < deadline:
-            size = self._dir_size(d)
-            stable = stable + 1 if size == last and size > 0 else 0
-            if stable >= 2:
-                print(f"  [{name}] chep xong {size / 1e9:.2f} GB")
-                return
-            last = size
-            time.sleep(5)
-        print(f"  [{name}] thu muc van con phinh sau {settle_timeout:.0f}s -- di tiep")
+        final = self._dir_size(self.vm_dir(new_idx)) if self.vm_dir(new_idx) else 0
+        print(f"  [{name}] clone xong sau {time.monotonic() - t0:.0f}s"
+              + (f", {final / 1e9:.2f} GB" if final else ""))
 
     def vm_dir(self, index: int) -> Path | None:
         # May ao dau tien ten "MEmu", cac may sau "MEmu_<i>".
-        base = self.path.parent / "MemuHyperv VMs"
-        d = base / ("MEmu" if index == 0 else f"MEmu_{index}")
+        d = self.vms_root / ("MEmu" if index == 0 else f"MEmu_{index}")
         return d if d.is_dir() else None
 
     # ---------- cau hinh ----------
