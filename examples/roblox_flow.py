@@ -203,17 +203,22 @@ USERNAME_FIELD = (200, 260)  # trang thai A
 GENDER_FEMALE = (109, 292)   # trang thai B, icon ben trai
 GENDER_MALE = (285, 292)     # trang thai B, icon ben phai
 SIGNUP_CONTINUE = (200, 370) # trang thai C
-# Bam Continue nhieu lan cung mot toa do, cach nhau mot khoang: lan dau hay
-# khong an (man hinh chua san sang nhan cham). pause() nhan he so SLOW.
+# Bam Continue nhieu lan, cach nhau mot khoang: lan dau hay khong an (man hinh
+# chua san sang nhan cham). pause() nhan he so SLOW.
 SIGNUP_CONTINUE_TAPS = 3     # tong so lan bam
 SIGNUP_CONTINUE_GAP = 6      # giay giua hai lan bam
+SIGNUP_CONTINUE_LAST_GAP = 30  # rieng truoc lan bam CUOI: cho lau hon
 # Lan 2 tro di bam vao TAM nut Continue, do tu anh chup man Create Account
 # (quy ve 400x500 sau khi bo khung cua so MEmu; doi chieu: o Gender ra dung
 # y=292 nhu dang dung). Nut trai tu y~369 toi y~401 -- toa do lan 1 (y=370)
 # nam sat MEP TREN cua nut, nen hay truot.
 SIGNUP_CONTINUE_RETRY = (200, 385)
-# Sau khi bam Continue (gender): cho man mat khau ve xong roi moi bam o password.
-# (Truoc day o giua con mot dot spam bam -- da bo.)
+# Bam Continue lan cuoi xong thi bam Back mot lan (bam mu, khong nhin man hinh)
+# roi moi vao luong nhap mat khau.
+SIGNUP_BACK_WAIT = 5         # giay cho truoc khi bam Back
+AFTER_SIGNUP_BACK = 5        # giay cho sau khi bam Back
+# Sau cu Back do, bang passkey (xem duoi) VAN CON thi _dismiss_passkey bam tiep;
+# dong duoc thi cho POST_SIGNUP_WAIT giay cho man mat khau ve xong.
 POST_SIGNUP_WAIT = 8
 # Tren MEmu, bam Continue xong thi hay co bang he thong "Create passkey on
 # another device?" de len che man Roblox. Khong doc duoc widget cua no, nen
@@ -818,11 +823,16 @@ def one_round(inst: Instance, log: Log) -> str | None:
         pos = SIGNUP_CONTINUE if k == 1 else SIGNUP_CONTINUE_RETRY
         log(f"bam Continue tai {pos} (lan {k}/{SIGNUP_CONTINUE_TAPS})")
         inst.tap(*pos)
-        if k < SIGNUP_CONTINUE_TAPS:
+        if k == SIGNUP_CONTINUE_TAPS - 1:
+            pause(SIGNUP_CONTINUE_LAST_GAP, log, "truoc lan bam Continue cuoi")
+        elif k < SIGNUP_CONTINUE_TAPS:
             pause(SIGNUP_CONTINUE_GAP, log, "truoc lan bam Continue tiep")
-    pause(STEP_PAUSE)
 
-    pause(POST_SIGNUP_WAIT, log, "cho man mat khau hien ra")
+    pause(SIGNUP_BACK_WAIT, log, "roi bam Back")
+    log("bam Back")
+    inst.back()
+    pause(AFTER_SIGNUP_BACK, log, "sau khi bam Back")
+
     if _dismiss_passkey(inst, log):
         pause(POST_SIGNUP_WAIT, log, "cho man mat khau hien ra sau khi dong bang passkey")
 
