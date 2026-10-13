@@ -211,6 +211,7 @@ PASSKEY_REGION = (0.08, 0.55, 0.92, 0.95)  # vung lay mau: x0, y0, x1, y1 theo t
 PASSKEY_WHITE = 215          # diem "gan trang": ca ba kenh mau >= nguong nay
 PASSKEY_MIN_FRAC = 0.5       # tu 50% diem lay mau gan trang tro len = bang dang mo
 PASSKEY_TRIES = 3            # bam Back toi da bay nhieu lan
+PASSKEY_RECHECK_WAIT = 8     # giay cho sau moi lan bam Back roi moi nhin lai
 
 # --- Man "Security" (nhan giu de xac nhan la nguoi that) -----------------
 # TAM THOI TAT. Dat lai True de bat buoc nay. Dung co thay vi comment code:
@@ -666,17 +667,21 @@ def _dismiss_passkey(inst: Instance, log: Log) -> bool:
     """Dong bang he thong "Create passkey ..." neu no dang che Roblox. True neu da dong.
 
     Chi bam Back KHI THAY bang: bam Back luc khong co bang la lui khoi man dang
-    ky.
+    ky. Bam xong thi cho PASSKEY_RECHECK_WAIT giay roi NHIN LAI: bang van con
+    thi bam Back lan nua, toi da PASSKEY_TRIES lan.
     """
-    closed = False
-    for _ in range(PASSKEY_TRIES):
-        if not _passkey_sheet_open(inst):
-            break
-        log("thay bang 'Create passkey' (nen trang o nua duoi man hinh) -> bam Back")
+    if not _passkey_sheet_open(inst):
+        return False
+    for n in range(1, PASSKEY_TRIES + 1):
+        log(f"thay bang 'Create passkey' (nen trang o nua duoi man hinh) -> bam Back lan {n}")
         inst.back()
-        closed = True
-        pause(STEP_PAUSE)
-    return closed
+        pause(PASSKEY_RECHECK_WAIT, log, "roi nhin lai xem bang passkey con khong")
+        if not _passkey_sheet_open(inst):
+            log("bang passkey da dong")
+            return True
+        log(f"sau {PASSKEY_RECHECK_WAIT}s bang passkey VAN CON")
+    log(f"da bam Back {PASSKEY_TRIES} lan ma bang passkey van con -> di tiep")
+    return True
 
 
 def _debug_shot(inst: Instance, log: Log, folder: str, tag: str) -> None:
