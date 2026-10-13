@@ -203,6 +203,10 @@ USERNAME_FIELD = (200, 260)  # trang thai A
 GENDER_FEMALE = (109, 292)   # trang thai B, icon ben trai
 GENDER_MALE = (285, 292)     # trang thai B, icon ben phai
 SIGNUP_CONTINUE = (200, 370) # trang thai C
+# Bam Continue nhieu lan cung mot toa do, cach nhau mot khoang: lan dau hay
+# khong an (man hinh chua san sang nhan cham). pause() nhan he so SLOW.
+SIGNUP_CONTINUE_TAPS = 3     # tong so lan bam
+SIGNUP_CONTINUE_GAP = 6      # giay giua hai lan bam
 # Sau khi bam Continue (gender): cho man mat khau ve xong roi moi bam o password.
 # (Truoc day o giua con mot dot spam bam -- da bo.)
 POST_SIGNUP_WAIT = 8
@@ -805,8 +809,11 @@ def one_round(inst: Instance, log: Log) -> str | None:
     inst.tap(*pos)
     pause(STEP_PAUSE)
 
-    log(f"bam Continue tai {SIGNUP_CONTINUE}")
-    inst.tap(*SIGNUP_CONTINUE)
+    for k in range(1, SIGNUP_CONTINUE_TAPS + 1):
+        log(f"bam Continue tai {SIGNUP_CONTINUE} (lan {k}/{SIGNUP_CONTINUE_TAPS})")
+        inst.tap(*SIGNUP_CONTINUE)
+        if k < SIGNUP_CONTINUE_TAPS:
+            pause(SIGNUP_CONTINUE_GAP, log, "truoc lan bam Continue tiep")
     pause(STEP_PAUSE)
 
     pause(POST_SIGNUP_WAIT, log, "cho man mat khau hien ra")
