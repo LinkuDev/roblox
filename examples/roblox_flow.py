@@ -53,6 +53,11 @@ VPN_STATUS_ID = "vpn_connection_status_text"   # 'Protected | 00:04:20' khi dang
 # ExpressVPN la app that -> UU TIEN uiautomator (tap theo text). Toa do pixel chi
 # la FALLBACK khi khong doc duoc widget. Chon random 1 nuoc trong danh sach hien.
 VPN_OPEN_WAIT = 6             # giay cho ExpressVPN mo
+# True  = KHONG doi nuoc: mo app, doi no tu ket noi; AUTOCONNECT_WAIT giay ma
+#         chua len thi bam nut Connect. Khong bao gio bam Change / chon nuoc.
+# False = doi nuoc moi vong (Change -> All Locations -> random nuoc).
+# GUI dat co nay tu o tich "VPN tu ket noi".
+VPN_AUTO_ONLY = False
 VPN_STEP_WAIT = 5            # giay giua cac buoc doi location
 VPN_CHANGE_BTN = (315, 350)   # fallback: nut "Change" (anh 5)
 VPN_ALL_TAB = (300, 115)      # fallback: tab "ALL LOCATIONS" (anh 6)
@@ -115,6 +120,8 @@ _country_lock = threading.Lock()
 # nham ca hai chieu.
 VPN_ON_RE = re.compile(r"\bprotected\b", re.I)
 VPN_OFF_RE = re.compile(r"\bnot\b|\bdisconnect", re.I)
+# "Connecting...", "Reconnecting...": dang noi do, bam nut Connect luc nay la HUY.
+VPN_BUSY_RE = re.compile(r"connecting", re.I)
 
 
 def status_says_on(text: str) -> bool:
@@ -519,12 +526,75 @@ def connect_vpn(inst: Instance, log: Log) -> None:
     pause(VPN_OPEN_WAIT, log, "cho ExpressVPN mo")
 
     # Hop thoai "Connection request" cua he thong -- clone thuong da co consent.
+    # O che do tu ket noi thi chi khop DUNG chu: khop mot phan co the trung mot
+    # chu nao do tren man ExpressVPN co chua "ok" (vd "Tokyo") va thanh ra bam
+    # vao app.
+    _accept_vpn_dialog(inst, log, exact=VPN_AUTO_ONLY)
+
+    if VPN_AUTO_ONLY:
+        _auto_connect(inst, log)
+    else:
+        _change_location(inst, log)
+
+    try:
+        inst.wait_vpn(timeout=120)
+    except TimeoutError:
+        log("tun chua len sau 120s -> doi them 120s")
+        inst.wait_vpn(timeout=120)
+    log("VPN da len (tun co IP)")
+
+
+def _accept_vpn_dialog(inst: Instance, log: Log, exact: bool) -> None:
+    """Bam OK o hop thoai "Connection request" cua he thong neu no dang hien."""
     for label in ("OK", "Allow", "Dong y"):
-        if inst.tap_node(text=label):
+        if inst.tap_node(text=label, exact=exact):
             log(f"da bam '{label}' o hop thoai VPN cua he thong")
             pause(2)
             break
 
+
+def _auto_connect(inst: Instance, log: Log) -> None:
+    """Che do VPN tu ket noi: doi app tu noi; khong tu noi thi bam nut Connect.
+
+    Khong bao gio bam Change hay chon nuoc. Nut Connect la TOGGLE -- bam luc
+    dang noi la ngat -- nen chi bam khi chac VPN dang TAT: tun chua len VA dong
+    trang thai khong bao "Protected" hay "Connecting". Ham nay chi lo viec bam;
+    viec doi tun len van o connect_vpn.
+    """
+    log(f"VPN tu ket noi: doi toi da {AUTOCONNECT_WAIT}s cho ExpressVPN tu noi")
+    deadline = time.monotonic() + AUTOCONNECT_WAIT * SLOW
+    while time.monotonic() < deadline and not STOP.is_set():
+        if inst.vpn_connected():
+            log("ExpressVPN da tu ket noi")
+            return
+        pause(2)
+
+    try:
+        nodes = inst.ui_nodes()
+    except Exception:
+        nodes = []
+    st = inst.find_node(res_id=VPN_STATUS_ID, nodes=nodes)
+    status = st["text"] if st else ""
+    if status_says_on(status) or VPN_BUSY_RE.search(status):
+        log(f"trang thai {status!r}: dang noi -> khong bam Connect, doi tiep")
+        return
+    btn = None
+    for hint in VPN_CONNECT_HINTS:
+        btn = inst.find_node(nodes=nodes, **hint)
+        if btn:
+            break
+    if btn is None:
+        log(f"VPN chua len (trang thai {status!r}) nhung khong thay nut Connect -> doi tiep")
+        return
+    log(f"VPN chua tu len (trang thai {status!r}) -> bam Connect tai {btn['center']}")
+    inst.tap(*btn["center"])
+    pause(2)
+    # Bam Connect lan dau co the lam hien hop thoai xin quyen VPN cua he thong.
+    _accept_vpn_dialog(inst, log, exact=True)
+
+
+def _change_location(inst: Instance, log: Log) -> None:
+    """Doi nuoc trong ExpressVPN: Change -> tab All Locations -> random nuoc."""
     # Doi location -> moi acc mot IP: Change -> tab All Locations -> random nuoc.
     # ExpressVPN la app that nen UU TIEN uiautomator (tap theo text/node); chi khi
     # khong doc duoc widget moi dung toa do pixel.
@@ -568,13 +638,6 @@ def connect_vpn(inst: Instance, log: Log) -> None:
         break
     else:
         log(f"khong thay hop thoai {VPN_DIALOG_TITLE!r} -> bo qua")
-
-    try:
-        inst.wait_vpn(timeout=120)
-    except TimeoutError:
-        log("tun chua len sau 120s -> doi them 120s")
-        inst.wait_vpn(timeout=120)
-    log("VPN da len (tun co IP)")
 
 
 def _passkey_sheet_open(inst: Instance) -> bool:

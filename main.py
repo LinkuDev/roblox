@@ -178,6 +178,8 @@ class App:
         self.root.after(150, self._pump)      # bom log + trang thai vao UI
 
     # ----- dung UI -----
+    VPN_AUTO_LABEL = "VPN tu ket noi: chi mo ExpressVPN, khong doi nuoc"
+
     def _build_config(self):
         f = ttk.LabelFrame(self.tab_farm, text="Cau hinh")
         f.pack(fill="x", padx=8, pady=6)
@@ -196,8 +198,10 @@ class App:
         self.var_slow = tk.DoubleVar(value=c.get("slow", 1.0))
         # Cong adb server. Mac dinh 5037 (chuan, dung chung server voi LDPlayer).
         self.var_adb_port = tk.StringVar(value=str(c.get("adb_port", "5037")))
+        # Tich = khong thao tac gi trong ExpressVPN, chi mo app cho no tu ket noi.
+        self.var_vpn_auto = tk.BooleanVar(value=bool(c.get("vpn_auto", False)))
         for v in (self.var_ld, self.var_ldplayer, self.var_db, self.var_rounds,
-                  self.var_clones, self.var_slow, self.var_adb_port):
+                  self.var_clones, self.var_slow, self.var_adb_port, self.var_vpn_auto):
             v.trace_add("write", lambda *a: self._save_config())
 
         row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
@@ -225,6 +229,9 @@ class App:
                     textvariable=self.var_slow).pack(side="left", padx=4)
         ttk.Label(row, text="ADB port:").pack(side="left", padx=(12, 0))
         ttk.Entry(row, textvariable=self.var_adb_port, width=6).pack(side="left", padx=4)
+
+        row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
+        ttk.Checkbutton(row, variable=self.var_vpn_auto, text=self.VPN_AUTO_LABEL).pack(side="left")
         self.config_widgets = f
 
     def _build_sources(self):
@@ -288,6 +295,7 @@ class App:
                 "clones": self.var_clones.get(),
                 "slow": self.var_slow.get(),
                 "adb_port": self.var_adb_port.get(),
+                "vpn_auto": self.var_vpn_auto.get(),
                 "sources": self._source_names(self.source_rows),
             }
             if hasattr(self, "login_source_rows"):
@@ -343,6 +351,9 @@ class App:
         row = ttk.Frame(cf); row.pack(fill="x", padx=6, pady=3)
         ttk.Label(row, text="ADB port:", width=11).pack(side="left")
         ttk.Entry(row, textvariable=self.var_adb_port, width=6).pack(side="left")
+        # Dung chung bien var_vpn_auto voi tab 'Tao acc'.
+        row = ttk.Frame(cf); row.pack(fill="x", padx=6, pady=3)
+        ttk.Checkbutton(row, variable=self.var_vpn_auto, text=self.VPN_AUTO_LABEL).pack(side="left")
         self.login_config_widgets = cf
 
         # Nguon cho login: clone giong luong tao acc, xep cua so khoi chong nhau.
@@ -427,6 +438,7 @@ class App:
         rf.LDCONSOLE = self.var_ld.get()
         rf.CLONES = self.var_login_clones.get()   # login clone giong luong tao acc
         rf.SLOW = self.var_slow.get()
+        rf.VPN_AUTO_ONLY = self.var_vpn_auto.get()
 
         self._set_config_state("disabled")
         self.btn_start.config(state="disabled")
@@ -812,6 +824,7 @@ class App:
         rf.CLONES = self.var_clones.get()
         rf.ROUNDS = self.var_rounds.get()
         rf.SLOW = self.var_slow.get()
+        rf.VPN_AUTO_ONLY = self.var_vpn_auto.get()
 
         self._set_config_state("disabled")
         self.btn_start.config(state="disabled")
