@@ -207,6 +207,11 @@ SIGNUP_CONTINUE = (200, 370) # trang thai C
 # khong an (man hinh chua san sang nhan cham). pause() nhan he so SLOW.
 SIGNUP_CONTINUE_TAPS = 3     # tong so lan bam
 SIGNUP_CONTINUE_GAP = 6      # giay giua hai lan bam
+# Lan 2 tro di bam vao TAM nut Continue, do tu anh chup man Create Account
+# (quy ve 400x500 sau khi bo khung cua so MEmu; doi chieu: o Gender ra dung
+# y=292 nhu dang dung). Nut trai tu y~369 toi y~401 -- toa do lan 1 (y=370)
+# nam sat MEP TREN cua nut, nen hay truot.
+SIGNUP_CONTINUE_RETRY = (200, 385)
 # Sau khi bam Continue (gender): cho man mat khau ve xong roi moi bam o password.
 # (Truoc day o giua con mot dot spam bam -- da bo.)
 POST_SIGNUP_WAIT = 8
@@ -810,8 +815,9 @@ def one_round(inst: Instance, log: Log) -> str | None:
     pause(STEP_PAUSE)
 
     for k in range(1, SIGNUP_CONTINUE_TAPS + 1):
-        log(f"bam Continue tai {SIGNUP_CONTINUE} (lan {k}/{SIGNUP_CONTINUE_TAPS})")
-        inst.tap(*SIGNUP_CONTINUE)
+        pos = SIGNUP_CONTINUE if k == 1 else SIGNUP_CONTINUE_RETRY
+        log(f"bam Continue tai {pos} (lan {k}/{SIGNUP_CONTINUE_TAPS})")
+        inst.tap(*pos)
         if k < SIGNUP_CONTINUE_TAPS:
             pause(SIGNUP_CONTINUE_GAP, log, "truoc lan bam Continue tiep")
     pause(STEP_PAUSE)
