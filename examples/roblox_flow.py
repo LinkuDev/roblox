@@ -172,15 +172,9 @@ USERNAME_FIELD = (200, 260)  # trang thai A
 GENDER_FEMALE = (109, 292)   # trang thai B, icon ben trai
 GENDER_MALE = (285, 292)     # trang thai B, icon ben phai
 SIGNUP_CONTINUE = (200, 370) # trang thai C
-# Sau khi bam Continue (gender): doi them roi SPAM bam (giong login POST_LOGIN_TAP).
-# Hai moc cho tach rieng: cho TRUOC spam phai du dai cho man hinh ve xong, neu
-# khong thi ca 10 cu bam roi vao khoang khong. Cho SAU spam chi de man hinh kip
-# phan ung, ngan hon duoc.
-POST_SIGNUP_WAIT = 16        # doi sau continue, TRUOC khi spam bam
-AFTER_SPAM_WAIT = 8          # doi SAU khi spam bam
-POST_SIGNUP_TAP = (73, 177)  # spam bam quanh diem nay
-POST_SIGNUP_TAPS = 10        # so cu bam
-POST_SIGNUP_JITTER = 5       # +-5px
+# Sau khi bam Continue (gender): cho man mat khau ve xong roi moi bam o password.
+# (Truoc day o giua con mot dot spam bam -- da bo.)
+POST_SIGNUP_WAIT = 8
 
 # --- Man "Security" (nhan giu de xac nhan la nguoi that) -----------------
 # TAM THOI TAT. Dat lai True de bat buoc nay. Dung co thay vi comment code:
@@ -656,11 +650,7 @@ def one_round(inst: Instance, log: Log) -> str | None:
     inst.tap(*SIGNUP_CONTINUE)
     pause(STEP_PAUSE)
 
-    # Sau continue (gender): doi them roi spam bam (73,345) giong login POST_LOGIN_TAP.
-    pause(POST_SIGNUP_WAIT, log, "cho sau continue")
-    log(f"spam bam quanh {POST_SIGNUP_TAP} (+-{POST_SIGNUP_JITTER}px x{POST_SIGNUP_TAPS})")
-    inst.tap_spam(*POST_SIGNUP_TAP, count=POST_SIGNUP_TAPS, jitter=POST_SIGNUP_JITTER)
-    pause(AFTER_SPAM_WAIT, log, "sau khi spam bam")
+    pause(POST_SIGNUP_WAIT, log, "cho man mat khau hien ra")
 
     STORE.update(acc.username, gender=gender, status="username_set")
     lap(f"xong man dang ky ({acc.username})")
@@ -703,7 +693,7 @@ def one_round(inst: Instance, log: Log) -> str | None:
     # 7. Man "Create Account": nhap mat khau roi bam Done.
     #    Mat khau sinh ra da thoa ca ba luat man hinh nay kiem: >= 8 ky tu,
     #    khong don gian, khong trung username (xem random_password()).
-    #    Bam vao o password truoc: cu spam o buoc tren co the lam mat autofocus.
+    #    Bam vao o password truoc khi go, khong trong vao autofocus cua man nay.
     _debug_shot(inst, log, DEBUG_SHOT_DIR, f"truoc_bam_password_{acc.username}")
     log(f"bam o password {PASSWORD_FIELD}")
     inst.tap(*PASSWORD_FIELD)
