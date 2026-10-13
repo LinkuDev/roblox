@@ -49,14 +49,11 @@ VPN_STATUS_ID = "vpn_connection_status_text"   # 'Protected | 00:04:20' khi dang
 
 # Doi location moi lan ket noi -> moi acc mot IP.
 # ExpressVPN la app that -> UU TIEN uiautomator (tap theo text). Toa do pixel chi
-# la FALLBACK khi khong doc duoc widget. Chon random 1 nuoc trong danh sach hien.
+# la FALLBACK khi khong doc duoc widget. Nuoc thi chi lay trong VPN_ALLOWED.
 VPN_OPEN_WAIT = 6             # giay cho ExpressVPN mo
 VPN_STEP_WAIT = 5            # giay giua cac buoc doi location
 VPN_CHANGE_BTN = (315, 350)   # fallback: nut "Change" (anh 5)
 VPN_ALL_TAB = (300, 115)      # fallback: tab "ALL LOCATIONS" (anh 6)
-VPN_COUNTRY_ROWS = [          # fallback: cac hang nuoc
-    (120, 224), (120, 282), (120, 339), (120, 396),
-]
 # Hop thoai "Changing Location?" hien SAU khi chon nuoc, nhung CHI khi VPN dang
 # ket noi san -- doi location luc dang tat thi khong co hop thoai nao. Vi vay
 # phai nhan dien hop thoai truoc khi bam, khong bam mu theo toa do.
@@ -75,30 +72,23 @@ VPN_LIST_SCROLL_DY = -280      # am = ngon tay di len = danh sach chay xuong
 VPN_LIST_MAX_SCROLLS = 60      # tran an toan cho _collect_countries (dump)
 VPN_LIST_ENOUGH = 20
 VPN_LIST_SETTLE = 0.8          # giay cho danh sach dung han truoc khi doc
-# Random country trong flow: cuon ngau nhien 0..N nac roi boc dai 1 nuoc dang hien.
-# 14 = so nac cham toi cuoi danh sach (Vietnam) do dump --collect thay 80 nuoc.
-VPN_RANDOM_MAX_SCROLLS = 14
+# Chon nuoc trong flow: CHI lay nuoc trong VPN_ALLOWED. Boc ngau nhien mot ten
+# roi cuon tung nac tu dau danh sach toi khi thay no -- khong cuon ngau nhien.
+# Ten phai dung nhu ExpressVPN ghi (khong phan biet hoa thuong). Day la HANG
+# NUOC trong danh sach: bam vao thi ExpressVPN tu chon thanh pho trong nuoc do.
+VPN_ALLOWED = [
+    "Singapore", "Hong Kong", "Canada", "France",
+    "Thailand", "United States", "United Kingdom", "Italy",
+]
+# Tran so nac cuon khi di tim. Ca danh sach ~15 nac (dump --collect: 80 nuoc,
+# nuoc cuoi o nac 14).
+VPN_FIND_MAX_SCROLLS = 25
 # Chu tren man danh sach KHONG phai ten nuoc -- loai ra khi gom.
 VPN_LIST_CHROME = {
     "All Locations", "Recommended", "Recent", "Favorites", "Search",
     "Smart Location", "VPN Locations", "Back", "Done", "Cancel", "Continue",
     "Add-ons", "Speed Test", "Help", "Profile", "VPN",
     "All Regions", "Sort: Endpoints", "ALL LOCATIONS", "RECOMMENDED",
-}
-# Nuoc ma Roblox bi chan / kiem duyet -> khong bao gio chon. Boc trung thi +1
-# sang hang ke. Viet thuong; so khop CA TEN chu khong so "co chua": "oman" nam
-# trong "Romania". ExpressVPN viet ten khac di thi them cach viet do vao day.
-VPN_BLOCKED = {
-    "vietnam", "viet nam",
-    "turkey", "türkiye", "turkiye",
-    "china",
-    "egypt",
-    "russia", "russian federation",
-    "iraq",
-    "algeria",
-    "qatar",
-    "oman",
-    "palestine", "palestinian territories",
 }
 
 _country_cache: "list[str] | None" = None      # ten nuoc, theo thu tu trong list
@@ -458,43 +448,57 @@ def _tap_country(inst: Instance, name: str, log: Log) -> bool:
     return False
 
 
-def _pick_country(inst: Instance, log: Log) -> None:
-    """Random: cuon ngau nhien 0..N nac roi boc dai 1 nuoc DANG HIEN ra bam.
+def _scan_tap(inst: Instance, log: Log, wanted: set[str]) -> str | None:
+    """Cuon tung nac tu cho dang dung, bam hang dau tien co ten nam trong `wanted`.
 
-    Don gian han gom ca danh sach: man All Locations mo moi lan la o dau list,
-    nen cuon 0..32 nac dua ta toi mot cho ngau nhien, roi lay bat ky nuoc nao
-    dang thay. Khong can biet truoc co bao nhieu nuoc.
+    `wanted` la ten viet thuong. So khop CA TEN chu khong so "co chua". Tra ve
+    ten nuoc da bam, None neu cuon het danh sach ma khong thay.
     """
-    n = random.randint(0, VPN_RANDOM_MAX_SCROLLS)
-    if n:
-        _scroll_list(inst, times=n)
-    log(f"random: cuon {n} nac")
-
-    for _ in range(3):
+    seen: set[str] = set()
+    stale = 0
+    for step in range(VPN_FIND_MAX_SCROLLS + 1):
         try:
             rows = _country_rows(inst.ui_nodes())
         except Exception:
             rows = []
-        rows = [(name, pos) for name, pos in rows if name not in VPN_LIST_CHROME]
-        if not rows:
-            break
-        # Boc mot hang; trung nuoc bi chan thi +1 sang hang ke, het hang thi
-        # vong lai hang dau.
-        start = random.randrange(len(rows))
-        for step in range(len(rows)):
-            name, pos = rows[(start + step) % len(rows)]
-            if name.strip().lower() not in VPN_BLOCKED:
-                log(f"chon nuoc: {name!r} tai {pos}")
+        for name, pos in rows:
+            if name.strip().lower() in wanted:
+                log(f"chon nuoc: {name!r} tai {pos} (sau {step} nac cuon)")
                 inst.tap(*pos)
-                return
-            log(f"bo qua nuoc bi chan {name!r} -> +1 sang hang ke")
-        # Ca man hinh toan nuoc bi chan -> cuon them mot nac roi boc lai.
+                return name
+        new = {name for name, _ in rows} - seen
+        seen |= new
+        # Ba nac lien tiep khong ra ten moi = da toi cuoi danh sach (hoac khong
+        # doc duoc gi) -> thoi cuon.
+        stale = 0 if new else stale + 1
+        if stale >= 3:
+            break
         _scroll_list(inst)
+    return None
 
-    # Khong doc duoc gi -> bam mu mot hang. Kem chac chan han, nen noi ro.
-    x, y = random.choice(VPN_COUNTRY_ROWS)
-    log(f"khong doc duoc nuoc nao (widget) -> bam toa do random ({x}, {y})")
-    inst.tap(x, y)
+
+def _pick_country(inst: Instance, log: Log) -> None:
+    """Boc ngau nhien mot nuoc trong VPN_ALLOWED roi cuon tu dau danh sach tim no.
+
+    Man All Locations mo moi lan la o dau danh sach, nen chi viec cuon xuong
+    tung nac va doc. Khong thay ten da boc (ExpressVPN bo nuoc do, hoac ghi ten
+    khac) thi ve dau danh sach va lay nuoc cho phep DAU TIEN gap duoc. Van
+    khong co thi nem loi: khong bam mu, vi bam mu la ra nuoc ngoai danh sach.
+    """
+    target = random.choice(VPN_ALLOWED)
+    log(f"tim nuoc {target!r}: cuon tu dau danh sach")
+    if _scan_tap(inst, log, {target.strip().lower()}):
+        return
+
+    log(f"cuon het danh sach khong thay {target!r} -> ve dau, lay nuoc cho phep "
+        f"dau tien gap duoc")
+    _scroll_to_top(inst)
+    if _scan_tap(inst, log, {n.strip().lower() for n in VPN_ALLOWED}):
+        return
+
+    raise RuntimeError(
+        "khong thay nuoc nao trong VPN_ALLOWED tren danh sach ExpressVPN "
+        "(khong doc duoc danh sach, hoac ten trong VPN_ALLOWED khong khop)")
 
 
 def connect_vpn(inst: Instance, log: Log) -> None:
