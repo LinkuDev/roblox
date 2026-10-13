@@ -58,6 +58,10 @@ VPN_OPEN_WAIT = 6             # giay cho ExpressVPN mo
 # False = doi nuoc moi vong (Change -> All Locations -> random nuoc).
 # GUI dat co nay tu o tich "VPN tu ket noi".
 VPN_AUTO_ONLY = False
+# True = BO QUA han ExpressVPN: khong mo app, khong doi VPN len, vao thang
+# Roblox. Dung khi VPN da bat o tang may tinh (PC). Bat ca hai co thi co nay
+# thang. GUI dat tu o tich "Bo qua VPN".
+VPN_SKIP = False
 VPN_STEP_WAIT = 5            # giay giua cac buoc doi location
 VPN_CHANGE_BTN = (315, 350)   # fallback: nut "Change" (anh 5)
 VPN_ALL_TAB = (300, 115)      # fallback: tab "ALL LOCATIONS" (anh 6)
@@ -516,6 +520,12 @@ def connect_vpn(inst: Instance, log: Log) -> None:
     Moc that su la interface tun co dia chi IP, khong phai chu tren man hinh:
     app bao 'Connected' ma khong co tun nghia la duong ham chua dung duoc.
     """
+    if VPN_SKIP:
+        # VPN chay o tang may tinh: trong may ao khong co tun nao de doi, va
+        # mo ExpressVPN len chi them mot lop VPN chong len.
+        log("bo qua VPN (VPN_SKIP): khong mo ExpressVPN, vao thang Roblox")
+        return
+
     # ExpressVPN tu ket noi lai khi may ao khoi dong (thua tu may goc), nhung mat
     # vai chuc giay. Kiem tra mot lan ngay sau boot la qua som: tun chua len,
     # script tuong chua bat roi bam nut -- ma do la TOGGLE, tuc ngat mat cai

@@ -179,6 +179,7 @@ class App:
 
     # ----- dung UI -----
     VPN_AUTO_LABEL = "VPN tu ket noi: chi mo ExpressVPN, khong doi nuoc"
+    VPN_SKIP_LABEL = "Bo qua VPN: khong mo ExpressVPN, vao thang Roblox (VPN bat o may tinh)"
 
     def _build_config(self):
         f = ttk.LabelFrame(self.tab_farm, text="Cau hinh")
@@ -200,8 +201,11 @@ class App:
         self.var_adb_port = tk.StringVar(value=str(c.get("adb_port", "5037")))
         # Tich = khong thao tac gi trong ExpressVPN, chi mo app cho no tu ket noi.
         self.var_vpn_auto = tk.BooleanVar(value=bool(c.get("vpn_auto", False)))
+        # Tich = bo qua han ExpressVPN, vao thang Roblox (VPN bat o tang may tinh).
+        self.var_vpn_skip = tk.BooleanVar(value=bool(c.get("vpn_skip", False)))
         for v in (self.var_ld, self.var_ldplayer, self.var_db, self.var_rounds,
-                  self.var_clones, self.var_slow, self.var_adb_port, self.var_vpn_auto):
+                  self.var_clones, self.var_slow, self.var_adb_port, self.var_vpn_auto,
+                  self.var_vpn_skip):
             v.trace_add("write", lambda *a: self._save_config())
 
         row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
@@ -232,6 +236,8 @@ class App:
 
         row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
         ttk.Checkbutton(row, variable=self.var_vpn_auto, text=self.VPN_AUTO_LABEL).pack(side="left")
+        row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
+        ttk.Checkbutton(row, variable=self.var_vpn_skip, text=self.VPN_SKIP_LABEL).pack(side="left")
         self.config_widgets = f
 
     def _build_sources(self):
@@ -296,6 +302,7 @@ class App:
                 "slow": self.var_slow.get(),
                 "adb_port": self.var_adb_port.get(),
                 "vpn_auto": self.var_vpn_auto.get(),
+                "vpn_skip": self.var_vpn_skip.get(),
                 "sources": self._source_names(self.source_rows),
             }
             if hasattr(self, "login_source_rows"):
@@ -354,6 +361,8 @@ class App:
         # Dung chung bien var_vpn_auto voi tab 'Tao acc'.
         row = ttk.Frame(cf); row.pack(fill="x", padx=6, pady=3)
         ttk.Checkbutton(row, variable=self.var_vpn_auto, text=self.VPN_AUTO_LABEL).pack(side="left")
+        row = ttk.Frame(cf); row.pack(fill="x", padx=6, pady=3)
+        ttk.Checkbutton(row, variable=self.var_vpn_skip, text=self.VPN_SKIP_LABEL).pack(side="left")
         self.login_config_widgets = cf
 
         # Nguon cho login: clone giong luong tao acc, xep cua so khoi chong nhau.
@@ -439,6 +448,7 @@ class App:
         rf.CLONES = self.var_login_clones.get()   # login clone giong luong tao acc
         rf.SLOW = self.var_slow.get()
         rf.VPN_AUTO_ONLY = self.var_vpn_auto.get()
+        rf.VPN_SKIP = self.var_vpn_skip.get()
 
         self._set_config_state("disabled")
         self.btn_start.config(state="disabled")
@@ -825,6 +835,7 @@ class App:
         rf.ROUNDS = self.var_rounds.get()
         rf.SLOW = self.var_slow.get()
         rf.VPN_AUTO_ONLY = self.var_vpn_auto.get()
+        rf.VPN_SKIP = self.var_vpn_skip.get()
 
         self._set_config_state("disabled")
         self.btn_start.config(state="disabled")
