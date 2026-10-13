@@ -18,10 +18,37 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Username Roblox: 3-20 ky tu, chi chu/so/mot dau gach duoi, khong duoc bat dau
-# hoac ket thuc bang gach duoi. Dung chu thuong + so cho giong vi du that
-# ('xv9bagfgd92gdg912') va tranh moi ranh gioi mo ho.
-_U_FIRST = string.ascii_lowercase                 # bat dau bang chu, khong bang so
-_U_REST = string.ascii_lowercase + string.digits
+# hoac ket thuc bang gach duoi.
+# Ten sinh ra co dang <TinhTu><DanhTu><so><vai chu>, vi du "BraveTiger4821mz":
+# phan dau doc len co nghia nhu ten nguoi that dat, phan so + chu ngau nhien o
+# duoi de khong trung ten da co tren Roblox.
+#   - Moi tu dai toi da 6 chu -> ten dai nhat 6+6+4+3 = 19, khong vuot 20.
+#   - Phan chu o duoi chi dung PHU AM: khong co nguyen am thi khong vo tinh
+#     ghep thanh tu tuc -- thu ma Roblox tu choi.
+#   - Them tu moi thi giu <= 6 chu va tranh tu nhay cam.
+_U_ADJ = (
+    "Happy", "Brave", "Swift", "Lucky", "Sunny", "Clever", "Mighty", "Silent",
+    "Golden", "Cosmic", "Frozen", "Tiny", "Wild", "Cool", "Epic", "Funny",
+    "Sleepy", "Quick", "Calm", "Bright", "Fuzzy", "Jolly", "Noble", "Royal",
+    "Rapid", "Shiny", "Smart", "Super", "Turbo", "Mega", "Hyper", "Magic",
+    "Mystic", "Lunar", "Solar", "Atomic", "Blue", "Red", "Green", "Pink",
+    "Silver", "Icy", "Fiery", "Stormy", "Windy", "Sneaky", "Chill", "Fancy",
+    "Gentle", "Humble", "Proud", "Bold",
+)
+_U_NOUN = (
+    "Tiger", "Panda", "Wolf", "Eagle", "Dragon", "Ninja", "Falcon", "Rabbit",
+    "Otter", "Koala", "Shark", "Lion", "Bear", "Fox", "Hawk", "Robot",
+    "Wizard", "Pirate", "Rocket", "Comet", "Storm", "Pixel", "Gamer",
+    "Racer", "Hunter", "Ranger", "Viking", "Turtle", "Monkey", "Parrot",
+    "Whale", "Zebra", "Llama", "Moose", "Bison", "Cobra", "Raven", "Owl",
+    "Lynx", "Puma", "Gecko", "Badger", "Kitten", "Puppy", "Bunny", "Hero",
+    "Pilot", "Scout", "Chef", "Rider", "Player", "Miner", "Farmer", "Archer",
+    "Golem", "Star", "Moon", "Planet", "Galaxy", "Nebula", "Meteor",
+    "Blaze", "Frost", "Flame", "Wave", "River", "Stone", "Cloud", "Breeze",
+)
+# Bo k, x, t, g: thieu chung thi khong ghep duoc may kieu viet tat tuc
+# (fck, sht, kkk, xxx...).
+_U_TAIL = "bcdfhjmnpqrsvwz"                       # phu am, chu thuong
 
 # Password chi dung chu-so co CHU Y: `adb shell input text` nuot mot loat ky tu
 # dac biet. Instance.text() co escape, nhung mat khau la thu ma go sai mot ky tu
@@ -58,9 +85,14 @@ class Account:
 
 
 def random_username(length: int = 20) -> str:
-    return _U_FIRST[secrets.randbelow(len(_U_FIRST))] + "".join(
-        secrets.choice(_U_REST) for _ in range(length - 1)
+    """Ten co nghia + so + vai chu ngau nhien, dai toi da `length` ky tu."""
+    name = (
+        secrets.choice(_U_ADJ) + secrets.choice(_U_NOUN)
+        + str(10 + secrets.randbelow(9990))                    # so 2-4 chu so
+        + "".join(secrets.choice(_U_TAIL)                      # 2-3 chu ngau nhien
+                  for _ in range(2 + secrets.randbelow(2)))
     )
+    return name[:length]
 
 
 def random_password(length: int = 16, avoid: str | None = None) -> str:
