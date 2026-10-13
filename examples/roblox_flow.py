@@ -175,6 +175,15 @@ SIGNUP_CONTINUE = (200, 370) # trang thai C
 # Sau khi bam Continue (gender): cho man mat khau ve xong roi moi bam o password.
 # (Truoc day o giua con mot dot spam bam -- da bo.)
 POST_SIGNUP_WAIT = 8
+# Tren MEmu, bam Continue xong thi hay co bang he thong "Create passkey on
+# another device?" de len che man Roblox. Khong doc duoc widget cua no, nen
+# nhan ra bang ANH: bang la mot tam nen TRANG phu ~60% phia duoi man hinh,
+# con moi man Roblox o buoc nay deu nen toi. Thay bang thi bam Back cua he
+# dieu hanh la dong.
+PASSKEY_REGION = (0.08, 0.55, 0.92, 0.95)  # vung lay mau: x0, y0, x1, y1 theo ti le man hinh
+PASSKEY_WHITE = 215          # diem "gan trang": ca ba kenh mau >= nguong nay
+PASSKEY_MIN_FRAC = 0.5       # tu 50% diem lay mau gan trang tro len = bang dang mo
+PASSKEY_TRIES = 3            # bam Back toi da bay nhieu lan
 
 # --- Man "Security" (nhan giu de xac nhan la nguoi that) -----------------
 # TAM THOI TAT. Dat lai True de bat buoc nay. Dung co thay vi comment code:
@@ -535,6 +544,45 @@ def connect_vpn(inst: Instance, log: Log) -> None:
     log("VPN da len (tun co IP)")
 
 
+def _passkey_sheet_open(inst: Instance) -> bool:
+    """Bang "Create passkey ..." dang che man hinh? Nhan dien bang anh, chi can PIL.
+
+    Lay mau mot luoi diem trong PASSKEY_REGION: phan lon gan trang thi la bang.
+    Chup man hong thi coi nhu khong co bang.
+    """
+    try:
+        img = inst.screenshot_pil()
+    except Exception:
+        return False
+    w, h = img.size
+    x0, y0, x1, y1 = PASSKEY_REGION
+    n = 14                              # luoi 14x14 = 196 diem
+    white = 0
+    for i in range(n):
+        for j in range(n):
+            x = int(w * (x0 + (x1 - x0) * i / (n - 1)))
+            y = int(h * (y0 + (y1 - y0) * j / (n - 1)))
+            white += min(img.getpixel((x, y))[:3]) >= PASSKEY_WHITE
+    return white / (n * n) >= PASSKEY_MIN_FRAC
+
+
+def _dismiss_passkey(inst: Instance, log: Log) -> bool:
+    """Dong bang he thong "Create passkey ..." neu no dang che Roblox. True neu da dong.
+
+    Chi bam Back KHI THAY bang: bam Back luc khong co bang la lui khoi man dang
+    ky.
+    """
+    closed = False
+    for _ in range(PASSKEY_TRIES):
+        if not _passkey_sheet_open(inst):
+            break
+        log("thay bang 'Create passkey' (nen trang o nua duoi man hinh) -> bam Back")
+        inst.back()
+        closed = True
+        pause(STEP_PAUSE)
+    return closed
+
+
 def _debug_shot(inst: Instance, log: Log, folder: str, tag: str) -> None:
     """Luu anh man hinh may ao vao `folder`. Hong thi chi ghi log."""
     if not folder:
@@ -651,6 +699,8 @@ def one_round(inst: Instance, log: Log) -> str | None:
     pause(STEP_PAUSE)
 
     pause(POST_SIGNUP_WAIT, log, "cho man mat khau hien ra")
+    if _dismiss_passkey(inst, log):
+        pause(POST_SIGNUP_WAIT, log, "cho man mat khau hien ra sau khi dong bang passkey")
 
     STORE.update(acc.username, gender=gender, status="username_set")
     lap(f"xong man dang ky ({acc.username})")
