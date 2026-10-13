@@ -85,6 +85,21 @@ VPN_LIST_CHROME = {
     "Add-ons", "Speed Test", "Help", "Profile", "VPN",
     "All Regions", "Sort: Endpoints", "ALL LOCATIONS", "RECOMMENDED",
 }
+# Nuoc ma Roblox bi chan / kiem duyet -> khong bao gio chon. Boc trung thi +1
+# sang hang ke. Viet thuong; so khop CA TEN chu khong so "co chua": "oman" nam
+# trong "Romania". ExpressVPN viet ten khac di thi them cach viet do vao day.
+VPN_BLOCKED = {
+    "vietnam", "viet nam",
+    "turkey", "türkiye", "turkiye",
+    "china",
+    "egypt",
+    "russia", "russian federation",
+    "iraq",
+    "algeria",
+    "qatar",
+    "oman",
+    "palestine", "palestinian territories",
+}
 
 _country_cache: "list[str] | None" = None      # ten nuoc, theo thu tu trong list
 _country_step: "dict[str, int]" = {}           # ten -> so nac cuon de thay no
@@ -452,16 +467,26 @@ def _pick_country(inst: Instance, log: Log) -> None:
         _scroll_list(inst, times=n)
     log(f"random: cuon {n} nac")
 
-    try:
-        rows = _country_rows(inst.ui_nodes())
-    except Exception:
-        rows = []
-    rows = [(name, pos) for name, pos in rows if name not in VPN_LIST_CHROME]
-    if rows:
-        name, pos = random.choice(rows)
-        log(f"chon nuoc: {name!r} tai {pos}")
-        inst.tap(*pos)
-        return
+    for _ in range(3):
+        try:
+            rows = _country_rows(inst.ui_nodes())
+        except Exception:
+            rows = []
+        rows = [(name, pos) for name, pos in rows if name not in VPN_LIST_CHROME]
+        if not rows:
+            break
+        # Boc mot hang; trung nuoc bi chan thi +1 sang hang ke, het hang thi
+        # vong lai hang dau.
+        start = random.randrange(len(rows))
+        for step in range(len(rows)):
+            name, pos = rows[(start + step) % len(rows)]
+            if name.strip().lower() not in VPN_BLOCKED:
+                log(f"chon nuoc: {name!r} tai {pos}")
+                inst.tap(*pos)
+                return
+            log(f"bo qua nuoc bi chan {name!r} -> +1 sang hang ke")
+        # Ca man hinh toan nuoc bi chan -> cuon them mot nac roi boc lai.
+        _scroll_list(inst)
 
     # Khong doc duoc gi -> bam mu mot hang. Kem chac chan han, nen noi ro.
     x, y = random.choice(VPN_COUNTRY_ROWS)
