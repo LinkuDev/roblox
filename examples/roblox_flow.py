@@ -286,10 +286,13 @@ def pause(seconds: float, log: Log | None = None, why: str = "") -> None:
 
 
 # --- Vong lap -------------------------------------------------------------
-ROUNDS = 0                   # 0 = chay khong gioi han, Ctrl+C de dung
+# Chay theo DOT: moi dot bat TAT CA may ao (nguon + clone), moi may mot vong,
+# doi tat ca xong va tat het roi moi mo dot sau. Khong con kieu moi may tu lap
+# rieng roi tu bat lai de "lap day".
+ROUNDS = 0                   # so dot. 0 = chay khong gioi han, Ctrl+C de dung
 ROUND_PAUSE = 8              # giay cho sau khi bam Done, truoc khi tat may ao
-MAX_FAILS = 3                # so vong hong LIEN TIEP truoc khi bo may ao do
-# Bat lai 4 may ao cung luc lam nghen dia y het luc dau -- rai ngau nhien ra.
+MAX_FAILS = 3                # so dot LIEN TIEP khong may nao chay het vong thi dung han
+# Chi con luong login (roblox_login.py) dung: nghi ngau nhien giua hai tai khoan.
 RESTART_JITTER = 14
 
 # Dat khi nguoi dung Ctrl+C. Thread dang chay se xong vong hien tai roi dung,
@@ -834,56 +837,32 @@ def one_round(inst: Instance, log: Log) -> str | None:
 
 
 def flow(inst: Instance, log: Log) -> None:
-    """Chay one_round lap di lap lai tren cung mot may ao.
+    """MOT vong tren mot may ao, xong thi tat may. Vong lap nam o run_farm.
 
-    Moi vong bat dau bang mot may ao vua boot: tat han roi bat lai chac chan
-    hon la dung tiep phien cu, vi Roblox con giu phien dang nhap cua tai khoan
-    vua tao -- vong sau se khong ra man dang ky nua.
+    run_farm chay theo DOT: bat tat ca may ao, moi may mot vong, doi tat ca
+    xong va tat het roi moi mo dot sau. Ham nay la phan viec cua mot may trong
+    mot dot. Vong hong thi nem loi ra de run_farm dem; may nay van duoc bat lai
+    o dot sau.
+
+    Tat may sau moi vong: Roblox con giu phien dang nhap cua tai khoan vua
+    tao -- dung tiep thi vong sau khong ra man dang ky nua.
     """
-    made: list[str] = []
-    fails = 0
-    n = 0
-    while not STOP.is_set():
-        _gate(log)         # tam dung giua cac vong neu duoc yeu cau
-        if STOP.is_set():
-            break
-        n += 1
-        log(f"===== vong {n}" + (f"/{ROUNDS}" if ROUNDS else "") + " =====")
+    _gate(log)             # tam dung truoc khi bat may neu duoc yeu cau
+    if STOP.is_set():
+        return
+    try:
+        one_round(inst, log)
+    finally:
+        # Tat may ao du vong vua roi thanh hay bai -- dot sau phai bat dau tu
+        # may sach. Loi luc tat khong duoc de nuot mat loi that o tren.
         try:
-            uname = one_round(inst, log)
-            if uname:                      # None = mismatch, acc da bi xoa
-                made.append(uname)
-            fails = 0
+            log(f"doi {ROUND_PAUSE}s roi tat may ao")
+            STOP.wait(ROUND_PAUSE)
+            inst.stop()
+            # settle=0: cho them giay chi can truoc khi COPY o dia.
+            inst.console.wait_stopped(inst.index, settle=0)
         except Exception as exc:
-            fails += 1
-            log(f"vong {n} HONG ({fails}/{MAX_FAILS}): {type(exc).__name__}: {exc}")
-            # Vong hong khong duoc keo do ca may ao: mot lan VPN cham hay
-            # Roblox ve lau la chuyen thuong. Chi bo cuoc khi hong LIEN TIEP.
-            if fails >= MAX_FAILS:
-                log(f"hong {MAX_FAILS} vong lien tiep -> dung may ao nay")
-                raise
-        finally:
-            # Tat may ao du vong vua roi thanh hay bai -- vong sau phai bat dau
-            # tu may sach. Loi luc tat khong duoc de nuot mat loi that o tren.
-            try:
-                log(f"doi {ROUND_PAUSE}s roi tat may ao")
-                STOP.wait(ROUND_PAUSE)
-                inst.stop()
-                # settle=0: cho them giay chi can truoc khi COPY o dia.
-                inst.console.wait_stopped(inst.index, settle=0)
-            except Exception as exc:
-                log(f"tat may ao khong sach: {type(exc).__name__}: {exc}")
-
-        if ROUNDS and n >= ROUNDS:
-            break
-        if STOP.is_set():
-            break
-        # Rai ngau nhien de 4 may khong cung boot lai mot luc.
-        wait = random.uniform(0, RESTART_JITTER)
-        log(f"nghi {wait:.0f}s truoc vong sau")
-        STOP.wait(wait)
-
-    log(f"dung sau {n} vong, tao duoc {len(made)} tai khoan: {made}")
+            log(f"tat may ao khong sach: {type(exc).__name__}: {exc}")
 
 
 def build_instances(console: Emulator, sources: list[str] | None = None,
@@ -996,13 +975,40 @@ def run_farm(console: Emulator, *, sources: list[str] | None = None,
         if n:
             print(f"da bat ADB debugging cho {n} may ao\n")
 
-    print(f"Vong lap: {ROUNDS or 'khong gioi han'} vong/may ao, "
-          f"cho {ROUND_PAUSE:.0f}s sau khi bam Done")
+    print(f"Chay theo dot: {ROUNDS or 'khong gioi han'} dot, moi dot bat ca "
+          f"{len(instances)} may ao, moi may mot vong, xong het moi mo dot sau. "
+          f"Cho {ROUND_PAUSE:.0f}s sau khi bam Done")
 
     t0 = time.monotonic()
-    results = run_parallel(instances, flow,
-                           stagger=STAGGER if stagger is None else stagger)
-    print(f"\nTong thoi gian: {time.monotonic() - t0:.0f}s")
+    results: list = []
+    n = 0
+    dry = 0                # so dot LIEN TIEP khong may nao chay het vong
+    while not STOP.is_set():
+        _gate(print)       # tam dung giua hai dot neu duoc yeu cau
+        if STOP.is_set():
+            break
+        n += 1
+        t1 = time.monotonic()
+        done_before = STORE.count("done")
+        print(f"\n===== DOT {n}" + (f"/{ROUNDS}" if ROUNDS else "")
+              + f": bat {len(instances)} may ao =====")
+        results = run_parallel(instances, flow, trace=False,
+                               stagger=STAGGER if stagger is None else stagger)
+        ok = sum(1 for r in results if r.ok)
+        print(f"===== het dot {n} sau {time.monotonic() - t1:.0f}s: {ok}/{len(results)} "
+              f"may chay het vong, them {STORE.count('done') - done_before} tai khoan "
+              f"co cookie =====")
+
+        # Mot dot ma KHONG may nao chay het vong la co gi do hong chung (emulator,
+        # mang, ADB). Lap lai mai chi dot may; dung sau MAX_FAILS dot nhu vay.
+        dry = 0 if ok else dry + 1
+        if dry >= MAX_FAILS:
+            print(f"{MAX_FAILS} dot lien tiep khong may nao chay het vong -> dung")
+            break
+        if ROUNDS and n >= ROUNDS:
+            break
+
+    print(f"\nDung sau {n} dot. Tong thoi gian: {time.monotonic() - t0:.0f}s")
     print(f"Kho tai khoan: {STORE.count()} ban ghi "
           f"({STORE.count('submitted')} da bam het, "
           f"{STORE.count('new') + STORE.count('username_set')} do dang)")
@@ -1027,7 +1033,8 @@ def main() -> int:
     ap.add_argument("--emulator", choices=("ldplayer", "memu"), default=None,
                     help="ep loai emulator khi ten file khong theo quy uoc")
     ap.add_argument("--rounds", type=int, default=ROUNDS,
-                    help="so vong moi may ao chay (0 = khong gioi han, Ctrl+C de dung)")
+                    help="so dot; moi dot moi may ao chay mot vong "
+                         "(0 = khong gioi han, Ctrl+C de dung)")
     ap.add_argument("--round-pause", type=float, default=ROUND_PAUSE,
                     help=f"giay cho sau khi bam Done truoc khi tat may ao "
                          f"(mac dinh {ROUND_PAUSE})")

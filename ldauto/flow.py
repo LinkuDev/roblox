@@ -54,6 +54,7 @@ def run_parallel(
     fn: Callable[[Instance, Log], None],
     stagger: float = 20.0,
     max_workers: int | None = None,
+    trace: bool = True,
 ) -> list[FlowResult]:
     """Chay fn(inst, log) tren tung may ao, song song.
 
@@ -63,6 +64,9 @@ def run_parallel(
 
     Mot may ao hong khong keo do cac may con lai -- loi duoc bat va tra ve
     trong FlowResult de xem lai o cuoi.
+
+    trace=False: may hong chi in mot dong loi, khong in ca traceback. Dung khi
+    goi lap lai nhieu dot -- moi dot vai may hong la chuyen thuong.
     """
 
     def worker(n: int, inst: Instance) -> FlowResult:
@@ -78,8 +82,9 @@ def run_parallel(
         except Exception as exc:
             dt = time.monotonic() - t0
             log(f"HONG: {type(exc).__name__}: {exc}")
-            with _print_lock:
-                traceback.print_exc()
+            if trace:
+                with _print_lock:
+                    traceback.print_exc()
             return FlowResult(inst.index, False, f"{type(exc).__name__}: {exc}", dt)
 
     with ThreadPoolExecutor(max_workers=max_workers or len(instances)) as pool:
