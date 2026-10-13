@@ -49,10 +49,14 @@ VPN_STATUS_ID = "vpn_connection_status_text"   # 'Protected | 00:04:20' khi dang
 
 # Doi location moi lan ket noi -> moi acc mot IP.
 # ExpressVPN la app that -> UU TIEN uiautomator (tap theo text). Toa do pixel chi
-# la FALLBACK khi khong doc duoc widget. Nuoc thi lay o muc "Most Popular".
+# la FALLBACK khi khong doc duoc widget. Chon random 1 nuoc trong danh sach hien.
 VPN_OPEN_WAIT = 6             # giay cho ExpressVPN mo
 VPN_STEP_WAIT = 5            # giay giua cac buoc doi location
 VPN_CHANGE_BTN = (315, 350)   # fallback: nut "Change" (anh 5)
+VPN_ALL_TAB = (300, 115)      # fallback: tab "ALL LOCATIONS" (anh 6)
+VPN_COUNTRY_ROWS = [          # fallback: cac hang nuoc
+    (120, 224), (120, 282), (120, 339), (120, 396),
+]
 # Hop thoai "Changing Location?" hien SAU khi chon nuoc, nhung CHI khi VPN dang
 # ket noi san -- doi location luc dang tat thi khong co hop thoai nao. Vi vay
 # phai nhan dien hop thoai truoc khi bam, khong bam mu theo toa do.
@@ -71,25 +75,33 @@ VPN_LIST_SCROLL_DY = -280      # am = ngon tay di len = danh sach chay xuong
 VPN_LIST_MAX_SCROLLS = 60      # tran an toan cho _collect_countries (dump)
 VPN_LIST_ENOUGH = 20
 VPN_LIST_SETTLE = 0.8          # giay cho danh sach dung han truoc khi doc
-# Chon nuoc trong flow: o lai tab RECOMMENDED (mac dinh sau khi bam Change),
-# cuon xuong toi khi thay nhan "Most Popular in Your Country", roi boc ngau
-# nhien mot nuoc nam DUOI nhan do, tru cac nuoc trong VPN_EXCLUDED. Khong qua
-# tab All Locations nua.
-VPN_POPULAR_LABEL = "Most Popular"   # khop mot phan, khong phan biet hoa thuong
-VPN_EXCLUDED = {"germany"}           # nuoc khong chon: viet thuong, so khop ca ten
-VPN_POPULAR_MAX_STEPS = 12           # so lan doc/cuon toi da khi di tim nhan
-# Nac cuon NGAN khi di tim nhan (danh sach nuoc cuon 280): nac dai de vuot qua
-# nhan, ma nhan troi khoi man hinh thi khong con doc duoc nua.
-VPN_POPULAR_SCROLL_DY = -150
-# Thay nhan roi thi keo no len toi y nay (ngay duoi thanh tab) de cac nuoc ben
-# duoi lo ra het; luc moi thay, nhan co the nam sat day man hinh.
-VPN_POPULAR_Y = 190
+# Random country trong flow: cuon ngau nhien 0..N nac roi boc dai 1 nuoc dang hien.
+# 14 = so nac cham toi cuoi danh sach (Vietnam) do dump --collect thay 80 nuoc.
+VPN_RANDOM_MAX_SCROLLS = 14
 # Chu tren man danh sach KHONG phai ten nuoc -- loai ra khi gom.
 VPN_LIST_CHROME = {
     "All Locations", "Recommended", "Recent", "Favorites", "Search",
     "Smart Location", "VPN Locations", "Back", "Done", "Cancel", "Continue",
     "Add-ons", "Speed Test", "Help", "Profile", "VPN",
     "All Regions", "Sort: Endpoints", "ALL LOCATIONS", "RECOMMENDED",
+}
+# Nuoc khong bao gio chon (Roblox bi chan / kiem duyet, va UK, US). Boc trung
+# thi BOC LAI nuoc khac. Viet thuong; so khop CA TEN chu khong so "co chua":
+# "oman" nam trong "Romania". ExpressVPN viet ten khac di thi them cach viet
+# do vao day.
+VPN_BLOCKED = {
+    "vietnam", "viet nam",
+    "turkey", "türkiye", "turkiye",
+    "china",
+    "egypt",
+    "russia", "russian federation",
+    "iraq",
+    "algeria",
+    "qatar",
+    "oman",
+    "palestine", "palestinian territories",
+    "united kingdom", "uk",
+    "united states", "us", "usa",
 }
 
 _country_cache: "list[str] | None" = None      # ten nuoc, theo thu tu trong list
@@ -449,67 +461,43 @@ def _tap_country(inst: Instance, name: str, log: Log) -> bool:
     return False
 
 
-def _popular_rows(inst: Instance, log: Log) -> list[tuple[str, tuple[int, int]]]:
-    """Cac hang nuoc nam DUOI nhan VPN_POPULAR_LABEL tren tab RECOMMENDED.
-
-    Nhan nam duoi mep man hinh: cuon xuong tung nac NGAN toi khi thay no. Thay
-    roi van chua du -- cac nuoc nam duoi nhan con khuat -- nen keo tiep cho
-    nhan len sat dau danh sach, roi moi doc cac hang ben duoi. Tra ve [] neu
-    cuon het so lan cho phep ma khong thay nhan.
-    """
-    adjusted = False
-    for _ in range(VPN_POPULAR_MAX_STEPS):
-        try:
-            nodes = inst.ui_nodes()
-        except Exception:
-            nodes = []
-        at = next((k for k, n in enumerate(nodes)
-                   if VPN_POPULAR_LABEL.lower() in n["text"].lower()), None)
-        if at is None:
-            if adjusted:
-                # Keo qua tay, nhan troi khoi mep tren -> keo nguoc lai mot chut.
-                inst.swipe(200, 250, 200, 370, 0.8)
-                time.sleep(VPN_LIST_SETTLE)
-            else:
-                inst.scroll(*VPN_LIST_ANCHOR, times=1, dy=VPN_POPULAR_SCROLL_DY,
-                            pause=VPN_LIST_SETTLE)
-            continue
-        y = nodes[at]["center"][1]
-        if adjusted or y <= VPN_POPULAR_Y + 40:
-            return _country_rows(nodes[at + 1:])
-        log(f"thay nhan {VPN_POPULAR_LABEL!r} o y={y} -> keo len y={VPN_POPULAR_Y}")
-        # Keo cham (0.8s) de danh sach khong troi them theo da.
-        inst.swipe(200, y, 200, VPN_POPULAR_Y, 0.8)
-        time.sleep(VPN_LIST_SETTLE)
-        adjusted = True
-    return []
-
-
 def _pick_country(inst: Instance, log: Log) -> None:
-    """Boc ngau nhien mot nuoc o muc "Most Popular in Your Country", tru VPN_EXCLUDED.
+    """Random: cuon ngau nhien 0..N nac roi boc dai 1 nuoc DANG HIEN ra bam.
 
-    Khong tim thay muc do thi bam tab RECOMMENDED (phong app mo ra o tab khac),
-    cuon ve dau danh sach (phong da cuon qua mat nhan) roi tim lai mot lan. Van
-    khong co thi nem loi, khong bam mu.
+    Don gian han gom ca danh sach: man All Locations mo moi lan la o dau list,
+    nen cuon 0..32 nac dua ta toi mot cho ngau nhien, roi lay bat ky nuoc nao
+    dang thay. Khong can biet truoc co bao nhieu nuoc.
     """
-    rows = _popular_rows(inst, log)
-    if not rows:
-        log(f"khong thay muc {VPN_POPULAR_LABEL!r} -> bam tab RECOMMENDED, ve dau "
-            f"danh sach roi tim lai")
-        inst.tap_node(text="Recommended")
-        pause(VPN_STEP_WAIT)
-        _scroll_to_top(inst)
-        rows = _popular_rows(inst, log)
+    n = random.randint(0, VPN_RANDOM_MAX_SCROLLS)
+    if n:
+        _scroll_list(inst, times=n)
+    log(f"random: cuon {n} nac")
 
-    names = [name for name, _ in rows]
-    rows = [(name, pos) for name, pos in rows if name.strip().lower() not in VPN_EXCLUDED]
-    if not rows:
-        raise RuntimeError(
-            f"khong co nuoc nao de chon duoi muc {VPN_POPULAR_LABEL!r} "
-            f"(doc duoc: {names or 'khong co gi'})")
-    name, pos = random.choice(rows)
-    log(f"chon nuoc: {name!r} tai {pos} (duoi muc {VPN_POPULAR_LABEL!r}: {names})")
-    inst.tap(*pos)
+    for _ in range(3):
+        try:
+            rows = _country_rows(inst.ui_nodes())
+        except Exception:
+            rows = []
+        rows = [(name, pos) for name, pos in rows if name not in VPN_LIST_CHROME]
+        if not rows:
+            break
+        # Boc ngau nhien; trung nuoc bi chan thi bo no ra va BOC LAI trong cac
+        # nuoc con lai dang hien, toi khi ra nuoc khong bi chan.
+        pool = list(rows)
+        while pool:
+            name, pos = pool.pop(random.randrange(len(pool)))
+            if name.strip().lower() not in VPN_BLOCKED:
+                log(f"chon nuoc: {name!r} tai {pos}")
+                inst.tap(*pos)
+                return
+            log(f"boc trung nuoc bi chan {name!r} -> boc lai")
+        # Ca man hinh toan nuoc bi chan -> cuon them mot nac roi boc lai.
+        _scroll_list(inst)
+
+    # Khong doc duoc gi -> bam mu mot hang. Kem chac chan han, nen noi ro.
+    x, y = random.choice(VPN_COUNTRY_ROWS)
+    log(f"khong doc duoc nuoc nao (widget) -> bam toa do random ({x}, {y})")
+    inst.tap(x, y)
 
 
 def connect_vpn(inst: Instance, log: Log) -> None:
@@ -535,8 +523,7 @@ def connect_vpn(inst: Instance, log: Log) -> None:
             pause(2)
             break
 
-    # Doi location -> moi acc mot IP: Change -> o lai tab RECOMMENDED -> random
-    # mot nuoc o muc "Most Popular in Your Country".
+    # Doi location -> moi acc mot IP: Change -> tab All Locations -> random nuoc.
     # ExpressVPN la app that nen UU TIEN uiautomator (tap theo text/node); chi khi
     # khong doc duoc widget moi dung toa do pixel.
     if inst.tap_node(text="Change", timeout=15):
@@ -546,6 +533,14 @@ def connect_vpn(inst: Instance, log: Log) -> None:
         inst.tap(*VPN_CHANGE_BTN)
     pause(VPN_STEP_WAIT, log, "cho man VPN Locations")
 
+    if inst.tap_node(text="All Locations", timeout=10):
+        log("bam tab ALL LOCATIONS (widget)")
+    else:
+        log("khong thay tab (widget) -> bam toa do")
+        inst.tap(*VPN_ALL_TAB)
+    pause(VPN_STEP_WAIT, log, "cho danh sach nuoc")
+
+    # Random tren TOAN BO danh sach, khong chi may nuoc dang hien tren man hinh.
     _pick_country(inst, log)
 
     # Xac nhan hop thoai "Changing Location?" neu no hien ra. Khong bam mu theo
