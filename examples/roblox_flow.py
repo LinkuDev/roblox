@@ -207,12 +207,18 @@ SIGNUP_CONTINUE = (200, 370) # trang thai C
 # chua san sang nhan cham). pause() nhan he so SLOW.
 SIGNUP_CONTINUE_TAPS = 3     # tong so lan bam
 SIGNUP_CONTINUE_GAP = 6      # giay giua hai lan bam
-SIGNUP_CONTINUE_LAST_GAP = 30  # rieng truoc lan bam CUOI: cho lau hon
+SIGNUP_CONTINUE_LAST_GAP = 38  # rieng truoc lan bam CUOI: cho lau hon
 # Lan 2 tro di bam vao TAM nut Continue, do tu anh chup man Create Account
 # (quy ve 400x500 sau khi bo khung cua so MEmu; doi chieu: o Gender ra dung
 # y=292 nhu dang dung). Nut trai tu y~369 toi y~401 -- toa do lan 1 (y=370)
 # nam sat MEP TREN cua nut, nen hay truot.
 SIGNUP_CONTINUE_RETRY = (200, 385)
+# Lan bam CUOI khong bam mot cu ma SPAM ca loat quanh SIGNUP_CONTINUE_RETRY. Moi
+# cu adb input tap tu no da mat vai tram ms, nen ca loat ~1-2s; log in thoi gian
+# that de chinh SPAM_GAP. Rai +-5px van nam trong nut (y~369..401).
+SIGNUP_CONTINUE_SPAM = (3, 4)    # so cu, random.randint
+SIGNUP_CONTINUE_SPAM_GAP = 0.2   # giay giua hai cu (khong nhan SLOW)
+SIGNUP_CONTINUE_SPAM_JITTER = 5  # +-px moi cu
 # Bam Continue lan cuoi xong thi bam Back mot lan (bam mu, khong nhin man hinh)
 # roi moi vao luong nhap mat khau.
 SIGNUP_BACK_WAIT = 5         # giay cho truoc khi bam Back
@@ -819,14 +825,23 @@ def one_round(inst: Instance, log: Log) -> str | None:
     inst.tap(*pos)
     pause(STEP_PAUSE)
 
-    for k in range(1, SIGNUP_CONTINUE_TAPS + 1):
+    # Lan 1 .. ke cuoi: moi lan bam mot cu.
+    for k in range(1, SIGNUP_CONTINUE_TAPS):
         pos = SIGNUP_CONTINUE if k == 1 else SIGNUP_CONTINUE_RETRY
         log(f"bam Continue tai {pos} (lan {k}/{SIGNUP_CONTINUE_TAPS})")
         inst.tap(*pos)
-        if k == SIGNUP_CONTINUE_TAPS - 1:
-            pause(SIGNUP_CONTINUE_LAST_GAP, log, "truoc lan bam Continue cuoi")
-        elif k < SIGNUP_CONTINUE_TAPS:
+        if k < SIGNUP_CONTINUE_TAPS - 1:
             pause(SIGNUP_CONTINUE_GAP, log, "truoc lan bam Continue tiep")
+
+    # Lan cuoi: cho lau hon roi SPAM ca loat thay vi mot cu.
+    pause(SIGNUP_CONTINUE_LAST_GAP, log, "truoc lan bam Continue cuoi")
+    count = random.randint(*SIGNUP_CONTINUE_SPAM)
+    log(f"spam Continue {count} cu quanh {SIGNUP_CONTINUE_RETRY} "
+        f"(lan {SIGNUP_CONTINUE_TAPS}/{SIGNUP_CONTINUE_TAPS})")
+    t = time.monotonic()
+    inst.tap_spam(*SIGNUP_CONTINUE_RETRY, count=count,
+                  jitter=SIGNUP_CONTINUE_SPAM_JITTER, interval=SIGNUP_CONTINUE_SPAM_GAP)
+    log(f"spam xong sau {time.monotonic() - t:.1f}s")
 
     pause(SIGNUP_BACK_WAIT, log, "roi bam Back")
     log("bam Back")
