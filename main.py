@@ -185,8 +185,11 @@ class App:
         c = self._cfg
         _ld_default = c.get("ldconsole", rf.LDCONSOLE)
         self.var_ld = tk.StringVar(value=_ld_default)
+        # Chuong trinh giao dien di kem: MEmu.exe canh memuc.exe, dnplayer.exe
+        # canh dnconsole.exe.
+        _gui_exe = "MEmu.exe" if "memu" in Path(_ld_default).name.lower() else "dnplayer.exe"
         self.var_ldplayer = tk.StringVar(
-            value=c.get("ldplayer", str(Path(_ld_default).with_name("dnplayer.exe"))))
+            value=c.get("ldplayer", str(Path(_ld_default).with_name(_gui_exe))))
         self.var_db = tk.StringVar(value=c.get("db", str(app_dir() / "accounts.db")))
         self.var_rounds = tk.IntVar(value=c.get("rounds", 0))
         self.var_clones = tk.IntVar(value=c.get("clones", rf.CLONES))

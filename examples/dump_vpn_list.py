@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from ldauto import Instance, LDConsole, Log  # noqa: E402
+from ldauto import Instance, Log, open_emulator  # noqa: E402
 import roblox_flow as rf  # noqa: E402
 
 
@@ -69,7 +69,7 @@ def main() -> int:
                     help="cuon ve dau danh sach truoc khi lam gi")
     args = ap.parse_args()
 
-    console = LDConsole(args.ldconsole)
+    console = open_emulator(args.ldconsole)    # memuc.exe -> MEmu, dnconsole.exe -> LDPlayer
     if args.index is not None:
         idx = args.index
     elif args.name:

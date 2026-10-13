@@ -25,8 +25,10 @@ from ldauto import window  # noqa: E402
 # --------------------------------------------------------------------------
 # Chuong trinh dong lenh cua emulator. Dua duong dan nao thi dung emulator do:
 # dnconsole.exe / ldconsole.exe -> LDPlayer, memuc.exe -> MEmu (xem open_emulator).
-LDCONSOLE = r"C:\LDPlayer\LDPlayer9\dnconsole.exe"
+# LDCONSOLE la duong dan MAC DINH (ten giu nguyen cho code cu) -- hien la MEmu.
+# Muon ve LDPlayer: r"C:\LDPlayer\LDPlayer9\dnconsole.exe".
 MEMUC = r"C:\Program Files\Microvirt\MEmu\memuc.exe"
+LDCONSOLE = MEMUC
 
 SOURCE = "roblox"          # may ao goc, da cai + dang nhap san ExpressVPN
 PREFIX = "bot"             # clone: bot0, bot1, bot2
