@@ -205,9 +205,9 @@ GENDER_MALE = (285, 292)     # trang thai B, icon ben phai
 SIGNUP_CONTINUE = (200, 370) # trang thai C
 # Bam Continue nhieu lan, cach nhau mot khoang: lan dau hay khong an (man hinh
 # chua san sang nhan cham). pause() nhan he so SLOW.
-SIGNUP_CONTINUE_TAPS = 3     # tong so lan bam
-SIGNUP_CONTINUE_GAP = 6      # giay giua hai lan bam
-SIGNUP_CONTINUE_LAST_GAP = 38  # rieng truoc lan bam CUOI: cho lau hon
+SIGNUP_CONTINUE_TAPS = 2     # tong so lan bam
+SIGNUP_CONTINUE_GAP = 6      # giay giua hai lan bam (chi dung khi TAPS > 2)
+SIGNUP_CONTINUE_LAST_GAP = 55  # rieng truoc lan bam CUOI: cho lau hon
 # Lan 2 tro di bam vao TAM nut Continue, do tu anh chup man Create Account
 # (quy ve 400x500 sau khi bo khung cua so MEmu; doi chieu: o Gender ra dung
 # y=292 nhu dang dung). Nut trai tu y~369 toi y~401 -- toa do lan 1 (y=370)
@@ -219,23 +219,15 @@ SIGNUP_CONTINUE_RETRY = (200, 385)
 SIGNUP_CONTINUE_SPAM = (3, 4)    # so cu, random.randint
 SIGNUP_CONTINUE_SPAM_GAP = 0.2   # giay giua hai cu (khong nhan SLOW)
 SIGNUP_CONTINUE_SPAM_JITTER = 5  # +-px moi cu
-# Bam Continue lan cuoi xong thi bam Back mot lan (bam mu, khong nhin man hinh)
-# roi moi vao luong nhap mat khau.
-SIGNUP_BACK_WAIT = 5         # giay cho truoc khi bam Back
-AFTER_SIGNUP_BACK = 5        # giay cho sau khi bam Back
-# Sau cu Back do, bang passkey (xem duoi) VAN CON thi _dismiss_passkey bam tiep;
-# dong duoc thi cho POST_SIGNUP_WAIT giay cho man mat khau ve xong.
-POST_SIGNUP_WAIT = 8
-# Tren MEmu, bam Continue xong thi hay co bang he thong "Create passkey on
-# another device?" de len che man Roblox. Khong doc duoc widget cua no, nen
-# nhan ra bang ANH: bang la mot tam nen TRANG phu ~60% phia duoi man hinh,
-# con moi man Roblox o buoc nay deu nen toi. Thay bang thi bam Back cua he
-# dieu hanh la dong.
-PASSKEY_REGION = (0.08, 0.55, 0.92, 0.95)  # vung lay mau: x0, y0, x1, y1 theo ti le man hinh
-PASSKEY_WHITE = 215          # diem "gan trang": ca ba kenh mau >= nguong nay
-PASSKEY_MIN_FRAC = 0.5       # tu 50% diem lay mau gan trang tro len = bang dang mo
-PASSKEY_TRIES = 3            # bam Back toi da bay nhieu lan
-PASSKEY_RECHECK_WAIT = 8     # giay cho sau moi lan bam Back roi moi nhin lai
+# Bam Continue lan cuoi xong: cho SIGNUP_CHECK_WAIT giay roi nhin man hinh. Con
+# captcha thi bo acc nay; khong thi vao luong nhap mat khau. Khong bam Back.
+SIGNUP_CHECK_WAIT = 10
+# Nhan ra captcha bang ANH (Roblox khong co widget tree): nut "Press and hold"
+# xanh navy cua man Security tai HOLD_BTN (xem duoi), HOAC nen trang phu nua
+# tren man hinh -- man Roblox o buoc nay, ke ca man mat khau, deu nen toi.
+CAPTCHA_REGION = (0.08, 0.08, 0.92, 0.45)  # vung lay mau: x0, y0, x1, y1 theo ti le man hinh
+CAPTCHA_WHITE = 215          # diem "gan trang": ca ba kenh mau >= nguong nay
+CAPTCHA_MIN_FRAC = 0.4       # tu 40% diem lay mau gan trang tro len = captcha
 
 # --- Man "Security" (nhan giu de xac nhan la nguoi that) -----------------
 # TAM THOI TAT. Dat lai True de bat buoc nay. Dung co thay vi comment code:
@@ -280,7 +272,7 @@ DONE_BTN = (200, 315)        # lan 2, bo cuc hint an, trong Done (288..334)
 # Chup man may ao de biet luc sap bam thi man hinh dang la gi. Anh la dung
 # khung hinh 400x500 cua may ao -> do toa do thang tren anh. Thu muc nam canh
 # accounts.db (chay exe thi la canh file exe). "" = tat rieng thu muc do.
-DEBUG_SHOT_DIR = "debug_shots"   # ngay truoc khi bam o password
+DEBUG_SHOT_DIR = "debug_shots"   # truoc khi bam o password, va luc bo acc vi captcha
 DEBUG_DONE_DIR = "debug_done"    # _1: truoc cu bam Done dau, _2: truoc cu thu hai
 
 # Nhan chung cho MOI moc cho ben duoi (--slow). May yeu hoac chay nhieu may ao
@@ -671,47 +663,33 @@ def _change_location(inst: Instance, log: Log) -> None:
         log(f"khong thay hop thoai {VPN_DIALOG_TITLE!r} -> bo qua")
 
 
-def _passkey_sheet_open(inst: Instance) -> bool:
-    """Bang "Create passkey ..." dang che man hinh? Nhan dien bang anh, chi can PIL.
+def _captcha_open(inst: Instance, log: Log) -> bool:
+    """Con man captcha sau Continue? Nhan dien bang anh, chi can PIL, khong bam gi.
 
-    Lay mau mot luoi diem trong PASSKEY_REGION: phan lon gan trang thi la bang.
-    Chup man hong thi coi nhu khong co bang.
+    Captcha khi: pixel tai HOLD_BTN xanh navy (nut cua man Security), HOAC phan
+    lon luoi diem lay mau trong CAPTCHA_REGION gan trang. Chup man hong thi coi
+    nhu khong co captcha -- di tiep nhu cu.
     """
     try:
         img = inst.screenshot_pil()
-    except Exception:
+    except Exception as exc:
+        log(f"chup man hinh hong ({type(exc).__name__}) -> coi nhu khong co captcha")
         return False
+    r, g, b = img.getpixel(HOLD_BTN)[:3]
+    navy = b - r >= BUTTON_BLUE_GAP and b - g >= BUTTON_BLUE_GAP and b >= 70
     w, h = img.size
-    x0, y0, x1, y1 = PASSKEY_REGION
+    x0, y0, x1, y1 = CAPTCHA_REGION
     n = 14                              # luoi 14x14 = 196 diem
     white = 0
     for i in range(n):
         for j in range(n):
             x = int(w * (x0 + (x1 - x0) * i / (n - 1)))
             y = int(h * (y0 + (y1 - y0) * j / (n - 1)))
-            white += min(img.getpixel((x, y))[:3]) >= PASSKEY_WHITE
-    return white / (n * n) >= PASSKEY_MIN_FRAC
-
-
-def _dismiss_passkey(inst: Instance, log: Log) -> bool:
-    """Dong bang he thong "Create passkey ..." neu no dang che Roblox. True neu da dong.
-
-    Chi bam Back KHI THAY bang: bam Back luc khong co bang la lui khoi man dang
-    ky. Bam xong thi cho PASSKEY_RECHECK_WAIT giay roi NHIN LAI: bang van con
-    thi bam Back lan nua, toi da PASSKEY_TRIES lan.
-    """
-    if not _passkey_sheet_open(inst):
-        return False
-    for n in range(1, PASSKEY_TRIES + 1):
-        log(f"thay bang 'Create passkey' (nen trang o nua duoi man hinh) -> bam Back lan {n}")
-        inst.back()
-        pause(PASSKEY_RECHECK_WAIT, log, "roi nhin lai xem bang passkey con khong")
-        if not _passkey_sheet_open(inst):
-            log("bang passkey da dong")
-            return True
-        log(f"sau {PASSKEY_RECHECK_WAIT}s bang passkey VAN CON")
-    log(f"da bam Back {PASSKEY_TRIES} lan ma bang passkey van con -> di tiep")
-    return True
+            white += min(img.getpixel((x, y))[:3]) >= CAPTCHA_WHITE
+    frac = white / (n * n)
+    log(f"kiem tra captcha: nut navy tai {HOLD_BTN} {'CO' if navy else 'khong'} {(r, g, b)}, "
+        f"nen trang nua tren {frac:.0%} (nguong {CAPTCHA_MIN_FRAC:.0%})")
+    return navy or frac >= CAPTCHA_MIN_FRAC
 
 
 def _debug_shot(inst: Instance, log: Log, folder: str, tag: str) -> None:
@@ -735,9 +713,9 @@ def _debug_shot(inst: Instance, log: Log, folder: str, tag: str) -> None:
 def one_round(inst: Instance, log: Log) -> str | None:
     """Mot vong: bat may ao -> VPN -> Roblox -> tao xong mot tai khoan.
 
-    Tra ve username vua tao, de nguoi goi ghi lai ket qua. Tra ve None khi
-    cookie lay duoc thuoc tai khoan KHAC -- luc do acc vua sinh coi nhu chua
-    tao duoc va ban ghi da bi xoa.
+    Tra ve username vua tao, de nguoi goi ghi lai ket qua. Tra ve None khi acc
+    vua sinh coi nhu chua tao duoc -- van con captcha sau Continue, hoac cookie
+    lay duoc thuoc tai khoan KHAC -- va ban ghi da bi xoa.
     """
 
     t0 = [time.monotonic()]
@@ -843,13 +821,15 @@ def one_round(inst: Instance, log: Log) -> str | None:
                   jitter=SIGNUP_CONTINUE_SPAM_JITTER, interval=SIGNUP_CONTINUE_SPAM_GAP)
     log(f"spam xong sau {time.monotonic() - t:.1f}s")
 
-    pause(SIGNUP_BACK_WAIT, log, "roi bam Back")
-    log("bam Back")
-    inst.back()
-    pause(AFTER_SIGNUP_BACK, log, "sau khi bam Back")
-
-    if _dismiss_passkey(inst, log):
-        pause(POST_SIGNUP_WAIT, log, "cho man mat khau hien ra sau khi dong bang passkey")
+    # Van con captcha thi bo acc: chua dat mat khau nen tai khoan chua ton tai
+    # tren Roblox, ban ghi user/pass vo nghia -> xoa.
+    pause(SIGNUP_CHECK_WAIT, log, "roi xem con captcha khong")
+    if _captcha_open(inst, log):
+        _debug_shot(inst, log, DEBUG_SHOT_DIR, f"captcha_{acc.username}")
+        log(f"van con captcha -> bo acc {acc.username}, xoa ban ghi")
+        STORE.delete(acc.username)
+        lap("bo vong vi captcha")
+        return None
 
     STORE.update(acc.username, gender=gender, status="username_set")
     lap(f"xong man dang ky ({acc.username})")
