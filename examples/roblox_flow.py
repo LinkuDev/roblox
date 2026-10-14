@@ -152,7 +152,9 @@ CHROME = (40, 90)            # vien + tieu de + cot cong cu, chi dung khi do hut
 # --- Man xac minh tuoi sau khi Roblox mo ---------------------------------
 # Toa do pixel, dung cho man hinh 400x500. Doi do phan giai la phai do lai het.
 ROBLOX_SETTLE = 20           # giay cho Roblox ve xong truoc khi bam
-CONTINUE_BTN = (200, 323)    # Create Account
+# Nut "Create Account" o man dau, bam DUNG MOT LAN. Do tu anh chup MEmu (bo khung
+# cua so, quy ve 400x500): nut x 19..380, y 303..350 -> lay tam.
+CONTINUE_BTN = (200, 313)
 AFTER_CONTINUE = 7           # giay cho banh xe chon ngay hien ra
 
 WHEELS = {                   # ba banh xe chon ngay sinh
