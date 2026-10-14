@@ -41,11 +41,6 @@ CPU, MEMORY, CPU_LIMIT = 2, 2048, 60
 STAGGER = 5                # giay giua moi may khi bat -- 4 may cung luc se nghen
 AUTOCONNECT_WAIT = 30      # giay doi ExpressVPN tu noi lai truoc khi can thiep
 RESOLUTION = None          # None = giu nguyen theo may goc
-# Debug: bat "Pointer location" (tuy chon nha phat trien) tren may ao -> cu bam
-# cuoi (ke ca adb input tap) de lai vet tren man hinh, toa do X/Y hien o thanh
-# tren cung; anh debug chup ra cung thay. "Show taps" (show_touches) thi KHONG
-# hien cu bam qua adb nen khong dung. False = tat lai lop nay.
-SHOW_TAPS = True
 
 # Nut Connect cua ExpressVPN, lay tu --dump-ui. Day la TOGGLE: bam khi dang bat
 # thi no NGAT vpn -- vi vay connect_vpn() kiem tra trang thai truoc, khong bam mu.
@@ -761,14 +756,6 @@ def one_round(inst: Instance, log: Log) -> str | None:
 
     # 1b. keo cua so ve o cua no (tach ra place_window de login dung chung).
     place_window(inst, log)
-
-    # 1c. lop phu vi tri bam (xem SHOW_TAPS). Chi de debug: hong thi bo qua.
-    try:
-        inst.sh(f"settings put system pointer_location {int(SHOW_TAPS)}")
-        got = inst.sh("settings get system pointer_location").strip()
-        log(f"pointer_location = {got} (SHOW_TAPS={SHOW_TAPS})")
-    except Exception as exc:
-        log(f"khong dat duoc pointer_location ({type(exc).__name__}: {exc})")
 
     # 2. VPN truoc, Roblox sau -- mo Roblox truoc thi no da bat dau noi mang
     #    bang IP that roi moi bi doi duong, de sinh loi ket noi giua chung.

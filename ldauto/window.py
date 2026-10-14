@@ -24,6 +24,10 @@ if _WIN:
     SWP_NOZORDER = 0x0004
     SWP_NOSIZE = 0x0001
     SW_RESTORE = 9
+    GWL_EXSTYLE = -20
+    # Layered + transparent = chuot di xuyen qua; noactivate + toolwindow = khong
+    # cuop focus, khong hien tren taskbar.
+    WS_EX_CLICK_THROUGH = 0x00080000 | 0x00000020 | 0x08000000 | 0x00000080
 
 
 def list_windows() -> list[tuple[int, str, str]]:
@@ -72,6 +76,56 @@ def rect(hwnd: int) -> tuple[int, int, int, int] | None:
     if not _user32.GetWindowRect(hwnd, ctypes.byref(r)):
         return None
     return r.left, r.top, r.right - r.left, r.bottom - r.top
+
+
+def children(hwnd: int) -> list[tuple[int, str, tuple[int, int, int, int]]]:
+    """Moi cua so con (moi cap) dang hien: (hwnd, ten lop, (x, y, rong, cao))."""
+    if not _WIN or not hwnd or not _user32.IsWindow(hwnd):
+        return []
+    out = []
+
+    def cb(child, _):
+        r = rect(child)
+        if r and _user32.IsWindowVisible(child):
+            cls = ctypes.create_unicode_buffer(256)
+            _user32.GetClassNameW(child, cls, 256)
+            out.append((child, cls.value, r))
+        return True
+
+    _user32.EnumChildWindows(hwnd, _EnumWindowsProc(cb), 0)
+    return out
+
+
+def android_rect(hwnd: int, aspect: float, tol: float = 0.03) -> tuple[int, int, int, int] | None:
+    """(x, y, rong, cao) tren man hinh cua vung ve Android trong cua so emulator.
+
+    Cua so con vien, thanh tieu de, cot cong cu -- nen lay cua so CON lon nhat
+    co ti le rong/cao khop man Android (aspect = rong/cao, lech <= tol). Khong
+    co cai nao khop thi None, khong doan bua.
+    """
+    best = None
+    for _, _, (x, y, w, h) in children(hwnd):
+        if w > 0 and h > 0 and abs(w / h - aspect) <= aspect * tol:
+            if best is None or w * h > best[2] * best[3]:
+                best = (x, y, w, h)
+    return best
+
+
+def virtual_screen() -> tuple[int, int, int, int] | None:
+    """(x, y, rong, cao) cua ca vung man hinh -- gom moi man hinh neu co nhieu cai."""
+    if not _WIN:
+        return None
+    m = _user32.GetSystemMetrics
+    return m(76), m(77), m(78), m(79)   # SM_X/YVIRTUALSCREEN, SM_CX/CYVIRTUALSCREEN
+
+
+def click_through(hwnd: int) -> bool:
+    """Bien cua so thanh lop phu: chuot bam xuyen qua, khong cuop focus."""
+    if not _WIN or not hwnd or not _user32.IsWindow(hwnd):
+        return False
+    style = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+    _user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style | WS_EX_CLICK_THROUGH)
+    return True
 
 
 def slot_pos(

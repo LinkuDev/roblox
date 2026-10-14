@@ -17,6 +17,11 @@ from .emulator import Emulator
 class Instance:
     """Gan mot may ao (LDPlayer hoac MEmu) voi mot ket noi ADB."""
 
+    # Goi TRUOC moi thao tac cham: on_touch(inst, x1, y1, x2, y2), toa do Android;
+    # bam/giu thi hai diem trung nhau. GUI dat de ve dau len cua so may ao. Chay
+    # trong thread cua may ao nen phai nhanh; loi trong do bi nuot, khong lam hong flow.
+    on_touch = None  # callable | None
+
     def __init__(self, console: Emulator, index: int, adb_port: int | None = None):
         self.console = console
         self.index = index
@@ -180,7 +185,16 @@ class Instance:
 
     # ---------- thao tac co ban ----------
 
+    def _touched(self, x1: int, y1: int, x2: int | None = None, y2: int | None = None) -> None:
+        if Instance.on_touch is None:
+            return
+        try:
+            Instance.on_touch(self, x1, y1, x1 if x2 is None else x2, y1 if y2 is None else y2)
+        except Exception:
+            pass
+
     def tap(self, x: int, y: int) -> None:
+        self._touched(x, y)
         self._retry(lambda d: d.click(x, y))
 
     def tap_spam(self, x: int, y: int, count: int = 10, jitter: int = 5,
@@ -196,6 +210,7 @@ class Instance:
             time.sleep(interval)
 
     def swipe(self, x1: int, y1: int, x2: int, y2: int, duration: float = 0.3) -> None:
+        self._touched(x1, y1, x2, y2)
         self._retry(lambda d: d.swipe(x1, y1, x2, y2, duration))
 
     # `adb shell input text` khong nhan space va nuot mot loat ky tu shell.
@@ -230,6 +245,7 @@ class Instance:
 
     def long_press(self, x: int, y: int, duration: float = 0.8) -> None:
         # swipe tai cho = nhan giu; adb khong co lenh long-press rieng.
+        self._touched(x, y)
         self._retry(lambda d: d.swipe(x, y, x, y, duration))
 
     def hold(self, x: int, y: int, seconds: float = 8.0, drift: int = 3) -> None:
@@ -244,6 +260,7 @@ class Instance:
         timeout du dai de lenh shell khong bi cat giua chung khi giu lau.
         """
         ms = int(seconds * 1000)
+        self._touched(x, y)
         self.sh(f"input swipe {x} {y} {x + drift} {y + drift} {ms}",
                 timeout=seconds + 20)
 

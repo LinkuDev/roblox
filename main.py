@@ -60,6 +60,7 @@ import roblox_flow as rf  # noqa: E402
 from ldauto import AccountStore, ensure_warning_prefix  # noqa: E402
 from ldauto import adbsetup, ldconfig  # noqa: E402
 from ldauto import telemetry  # noqa: E402
+from ldauto import Instance, window as win  # noqa: E402
 
 
 class _QueueWriter:
@@ -147,6 +148,12 @@ class App:
         # Redirect ngay: che do --windowed cua PyInstaller co sys.stdout = None,
         # moi print()/Log se loi neu khong huong ve queue. Giu suot doi app.
         sys.stdout = sys.stderr = _QueueWriter(self.log_q)
+        # Dau cham tren may ao: thread may ao day toa do man hinh vao day (xem
+        # _on_touch), _pump ve len lop phu. Lop phu tao luc can ve lan dau.
+        self.touch_q: queue.Queue[tuple[int, int, int, int]] = queue.Queue()
+        self._touch_layer = None
+        self._emu_hwnd: dict[int, tuple[int, float]] = {}   # index -> (cua so, luc hoi)
+        self._touch_logged: dict[int, int] = {}   # index -> cua so da ghi log
         self.worker: threading.Thread | None = None
         self.restart_pending = False   # dat khi bam Chay lai luc dang chay
         self._ready = False            # chan _save_config chay khi dang dung UI
@@ -181,6 +188,9 @@ class App:
     # ----- dung UI -----
     VPN_AUTO_LABEL = "VPN tu ket noi: chi mo ExpressVPN, khong doi nuoc"
     VPN_SKIP_LABEL = "Bo qua VPN: khong mo ExpressVPN, vao thang Roblox (VPN bat o may tinh)"
+    SHOW_TAPS_LABEL = "Hien cho bam / vuot tren cua so may ao (debug)"
+    TOUCH_MARK_MS = 1500         # dau cham hien bao lau
+    TOUCH_KEY = "#ff00ff"        # mau nen lop phu, Windows lam trong suot
 
     def _build_config(self):
         f = ttk.LabelFrame(self.tab_farm, text="Cau hinh")
@@ -204,9 +214,11 @@ class App:
         self.var_vpn_auto = tk.BooleanVar(value=bool(c.get("vpn_auto", False)))
         # Tich = bo qua han ExpressVPN, vao thang Roblox (VPN bat o tang may tinh).
         self.var_vpn_skip = tk.BooleanVar(value=bool(c.get("vpn_skip", False)))
+        # Tich = ve dau len cua so may ao moi lan bam/vuot (xem _on_touch).
+        self.var_show_taps = tk.BooleanVar(value=bool(c.get("show_taps", True)))
         for v in (self.var_ld, self.var_ldplayer, self.var_db, self.var_rounds,
                   self.var_clones, self.var_slow, self.var_adb_port, self.var_vpn_auto,
-                  self.var_vpn_skip):
+                  self.var_vpn_skip, self.var_show_taps):
             v.trace_add("write", lambda *a: self._save_config())
 
         row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
@@ -239,6 +251,8 @@ class App:
         ttk.Checkbutton(row, variable=self.var_vpn_auto, text=self.VPN_AUTO_LABEL).pack(side="left")
         row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
         ttk.Checkbutton(row, variable=self.var_vpn_skip, text=self.VPN_SKIP_LABEL).pack(side="left")
+        row = ttk.Frame(f); row.pack(fill="x", padx=6, pady=3)
+        ttk.Checkbutton(row, variable=self.var_show_taps, text=self.SHOW_TAPS_LABEL).pack(side="left")
         self.config_widgets = f
 
     def _build_sources(self):
@@ -304,6 +318,7 @@ class App:
                 "adb_port": self.var_adb_port.get(),
                 "vpn_auto": self.var_vpn_auto.get(),
                 "vpn_skip": self.var_vpn_skip.get(),
+                "show_taps": self.var_show_taps.get(),
                 "sources": self._source_names(self.source_rows),
             }
             if hasattr(self, "login_source_rows"):
@@ -364,6 +379,8 @@ class App:
         ttk.Checkbutton(row, variable=self.var_vpn_auto, text=self.VPN_AUTO_LABEL).pack(side="left")
         row = ttk.Frame(cf); row.pack(fill="x", padx=6, pady=3)
         ttk.Checkbutton(row, variable=self.var_vpn_skip, text=self.VPN_SKIP_LABEL).pack(side="left")
+        row = ttk.Frame(cf); row.pack(fill="x", padx=6, pady=3)
+        ttk.Checkbutton(row, variable=self.var_show_taps, text=self.SHOW_TAPS_LABEL).pack(side="left")
         self.login_config_widgets = cf
 
         # Nguon cho login: clone giong luong tao acc, xep cua so khoi chong nhau.
@@ -450,6 +467,7 @@ class App:
         rf.SLOW = self.var_slow.get()
         rf.VPN_AUTO_ONLY = self.var_vpn_auto.get()
         rf.VPN_SKIP = self.var_vpn_skip.get()
+        Instance.on_touch = self._on_touch if self.var_show_taps.get() else None
 
         self._set_config_state("disabled")
         self.btn_start.config(state="disabled")
@@ -871,6 +889,7 @@ class App:
         rf.SLOW = self.var_slow.get()
         rf.VPN_AUTO_ONLY = self.var_vpn_auto.get()
         rf.VPN_SKIP = self.var_vpn_skip.get()
+        Instance.on_touch = self._on_touch if self.var_show_taps.get() else None
 
         self._set_config_state("disabled")
         self.btn_start.config(state="disabled")
@@ -1008,6 +1027,13 @@ class App:
             self._append(line)
             drained += 1
 
+        # dau cham tren may ao
+        while True:
+            try:
+                self._draw_touch(*self.touch_q.get_nowait())
+            except queue.Empty:
+                break
+
         # trang thai
         st = db_stats(self.var_db.get())
         if st:
@@ -1045,6 +1071,84 @@ class App:
         if int(txt.index("end-1c").split(".")[0]) > 1000:
             txt.delete("1.0", "200.0")
         txt.config(state="disabled")
+
+    # ----- dau cham tren may ao -----
+    def _on_touch(self, inst, x1: int, y1: int, x2: int, y2: int) -> None:
+        """Instance.on_touch -- chay trong thread may ao, KHONG dung tkinter o day.
+
+        Doi toa do Android ra toa do man hinh theo cua so may ao, day vao touch_q.
+        """
+        area = self._android_area(inst)
+        if area is None:
+            return
+        ax, ay, aw, ah = area
+        w, h = inst.screen_resolution()
+        sx, sy = aw / w, ah / h
+        self.touch_q.put((round(ax + x1 * sx), round(ay + y1 * sy),
+                          round(ax + x2 * sx), round(ay + y2 * sy)))
+
+    def _android_area(self, inst) -> tuple[int, int, int, int] | None:
+        """Vung ve Android cua may `inst` tren man hinh (x, y, rong, cao), hoac None."""
+        hwnd, looked = self._emu_hwnd.get(inst.index, (0, 0.0))
+        # Chua co / may ao vua bat lai -> hoi memuc handle moi. Hoi la ton mot tien
+        # trinh, nen khong tim thay thi 10s sau moi hoi lai -- khong hoi moi cu bam.
+        if not win.rect(hwnd) and time.monotonic() - looked > 10:
+            info = next((i for i in inst.console.list2() if i.index == inst.index), None)
+            hwnd = info.top_window_handle if info else 0
+            self._emu_hwnd[inst.index] = (hwnd, time.monotonic())
+        w, h = inst.screen_resolution()
+        area = win.android_rect(hwnd, w / h)
+        if self._touch_logged.get(inst.index) != hwnd:   # moi cua so ghi log mot lan
+            self._touch_logged[inst.index] = hwnd
+            log = rf.Log(str(inst.index))
+            if area:
+                log(f"ve dau cham: vung Android {area} trong cua so hwnd={hwnd}")
+            else:
+                log(f"KHONG tim thay vung Android {w}x{h} trong cua so hwnd={hwnd} -> "
+                    f"khong ve dau cham. Cua so con: {win.children(hwnd)[:10]}")
+        return area
+
+    def _draw_touch(self, x1: int, y1: int, x2: int, y2: int) -> None:
+        """Vong do o cho vua cham; vuot/cuon thi them mui ten toi diem cuoi."""
+        if self._touch_layer is None:
+            self._touch_layer = self._make_touch_layer()
+        if not self._touch_layer:
+            return
+        canvas, ox, oy = self._touch_layer
+        x1, y1, x2, y2 = x1 - ox, y1 - oy, x2 - ox, y2 - oy
+        r = 12
+        items = [canvas.create_oval(x1 - r, y1 - r, x1 + r, y1 + r, outline="red", width=3)]
+        if abs(x2 - x1) + abs(y2 - y1) > 8:
+            items.append(canvas.create_line(x1, y1, x2, y2, fill="red", width=3, arrow="last"))
+        else:
+            items.append(canvas.create_oval(x1 - 3, y1 - 3, x1 + 3, y1 + 3,
+                                            fill="red", outline="red"))
+        self.root.after(self.TOUCH_MARK_MS, lambda: canvas.delete(*items))
+
+    def _make_touch_layer(self):
+        """Lop trong suot phu ca man hinh, luon o tren, chuot bam xuyen qua.
+
+        Tra ve (canvas, x0, y0); False neu khong lam duoc (khong phai Windows).
+        """
+        screen = win.virtual_screen()
+        if not screen:
+            return False
+        x0, y0, w, h = screen
+        top = tk.Toplevel(self.root)
+        top.overrideredirect(True)
+        try:
+            # Dat TRUOC khi cua so hien ra, khong thi ca man hinh nhay mau nen.
+            top.attributes("-transparentcolor", self.TOUCH_KEY)
+        except tk.TclError:
+            top.destroy()
+            return False
+        top.attributes("-topmost", True)
+        top.geometry(f"{w}x{h}+{x0}+{y0}")
+        canvas = tk.Canvas(top, bg=self.TOUCH_KEY, highlightthickness=0)
+        canvas.pack(fill="both", expand=True)
+        top.update_idletasks()
+        win.click_through(int(top.wm_frame(), 16))
+        return canvas, x0, y0
 
     def _set_config_state(self, state: str):
         def walk(parent):
