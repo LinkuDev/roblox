@@ -203,17 +203,21 @@ USERNAME_FIELD = (200, 260)  # trang thai A
 GENDER_FEMALE = (109, 292)   # trang thai B, icon ben trai
 GENDER_MALE = (285, 292)     # trang thai B, icon ben phai
 SIGNUP_CONTINUE = (200, 370) # trang thai C
-# Bam Continue nhieu lan, cach nhau mot khoang: lan dau hay khong an (man hinh
-# chua san sang nhan cham). pause() nhan he so SLOW.
-SIGNUP_CONTINUE_TAPS = 2     # tong so lan bam
-SIGNUP_CONTINUE_GAP = 6      # giay giua hai lan bam (chi dung khi TAPS > 2)
-SIGNUP_CONTINUE_LAST_GAP = 55  # rieng truoc lan bam CUOI: cho lau hon
+# Bam Continue 3 lan (pause() nhan he so SLOW):
+#   lan 1: bam mot cu tai SIGNUP_CONTINUE
+#   cho SIGNUP_BACK_WAIT -> bam Back cua he dieu hanh -> cho SIGNUP_AFTER_BACK
+#   lan 2: SPAM ca loat quanh SIGNUP_CONTINUE_RETRY
+#   cho SIGNUP_CONTINUE_LAST_GAP
+#   lan 3: SPAM ca loat lan nua
+SIGNUP_BACK_WAIT = 50          # giay sau lan 1 roi moi bam Back
+SIGNUP_AFTER_BACK = 10         # giay sau khi bam Back, truoc lan spam 2
+SIGNUP_CONTINUE_LAST_GAP = 5   # giay truoc lan spam CUOI (lan 3). Truoc: 55
 # Lan 2 tro di bam vao TAM nut Continue, do tu anh chup man Create Account
 # (quy ve 400x500 sau khi bo khung cua so MEmu; doi chieu: o Gender ra dung
 # y=292 nhu dang dung). Nut trai tu y~369 toi y~401 -- toa do lan 1 (y=370)
 # nam sat MEP TREN cua nut, nen hay truot.
 SIGNUP_CONTINUE_RETRY = (200, 385)
-# Lan bam CUOI khong bam mot cu ma SPAM ca loat quanh SIGNUP_CONTINUE_RETRY. Moi
+# Lan 2 va 3 khong bam mot cu ma SPAM ca loat quanh SIGNUP_CONTINUE_RETRY. Moi
 # cu adb input tap tu no da mat vai tram ms, nen ca loat ~1-2s; log in thoi gian
 # that de chinh SPAM_GAP. Rai +-5px van nam trong nut (y~369..401).
 SIGNUP_CONTINUE_SPAM = (3, 4)    # so cu, random.randint
@@ -692,6 +696,16 @@ def _captcha_open(inst: Instance, log: Log) -> bool:
     return navy or frac >= CAPTCHA_MIN_FRAC
 
 
+def _spam_continue(inst: Instance, log: Log, k: int) -> None:
+    """Spam ca loat quanh nut Continue cua man dang ky (lan k/3)."""
+    count = random.randint(*SIGNUP_CONTINUE_SPAM)
+    log(f"spam Continue {count} cu quanh {SIGNUP_CONTINUE_RETRY} (lan {k}/3)")
+    t = time.monotonic()
+    inst.tap_spam(*SIGNUP_CONTINUE_RETRY, count=count,
+                  jitter=SIGNUP_CONTINUE_SPAM_JITTER, interval=SIGNUP_CONTINUE_SPAM_GAP)
+    log(f"spam xong sau {time.monotonic() - t:.1f}s")
+
+
 def _debug_shot(inst: Instance, log: Log, folder: str, tag: str) -> None:
     """Luu anh man hinh may ao vao `folder`. Hong thi chi ghi log."""
     if not folder:
@@ -803,23 +817,20 @@ def one_round(inst: Instance, log: Log) -> str | None:
     inst.tap(*pos)
     pause(STEP_PAUSE)
 
-    # Lan 1 .. ke cuoi: moi lan bam mot cu.
-    for k in range(1, SIGNUP_CONTINUE_TAPS):
-        pos = SIGNUP_CONTINUE if k == 1 else SIGNUP_CONTINUE_RETRY
-        log(f"bam Continue tai {pos} (lan {k}/{SIGNUP_CONTINUE_TAPS})")
-        inst.tap(*pos)
-        if k < SIGNUP_CONTINUE_TAPS - 1:
-            pause(SIGNUP_CONTINUE_GAP, log, "truoc lan bam Continue tiep")
+    # Lan 1: bam mot cu.
+    log(f"bam Continue tai {SIGNUP_CONTINUE} (lan 1/3)")
+    inst.tap(*SIGNUP_CONTINUE)
 
-    # Lan cuoi: cho lau hon roi SPAM ca loat thay vi mot cu.
-    pause(SIGNUP_CONTINUE_LAST_GAP, log, "truoc lan bam Continue cuoi")
-    count = random.randint(*SIGNUP_CONTINUE_SPAM)
-    log(f"spam Continue {count} cu quanh {SIGNUP_CONTINUE_RETRY} "
-        f"(lan {SIGNUP_CONTINUE_TAPS}/{SIGNUP_CONTINUE_TAPS})")
-    t = time.monotonic()
-    inst.tap_spam(*SIGNUP_CONTINUE_RETRY, count=count,
-                  jitter=SIGNUP_CONTINUE_SPAM_JITTER, interval=SIGNUP_CONTINUE_SPAM_GAP)
-    log(f"spam xong sau {time.monotonic() - t:.1f}s")
+    # Cho roi bam Back cua he dieu hanh -- bam luon, khong nhin man hinh truoc.
+    pause(SIGNUP_BACK_WAIT, log, "roi bam Back cua he dieu hanh")
+    log("bam Back cua he dieu hanh")
+    inst.back()
+    pause(SIGNUP_AFTER_BACK, log, "sau khi bam Back")
+
+    # Lan 2 va 3: spam ca loat.
+    _spam_continue(inst, log, 2)
+    pause(SIGNUP_CONTINUE_LAST_GAP, log, "truoc lan spam Continue cuoi")
+    _spam_continue(inst, log, 3)
 
     # Van con captcha thi bo acc: chua dat mat khau nen tai khoan chua ton tai
     # tren Roblox, ban ghi user/pass vo nghia -> xoa.
