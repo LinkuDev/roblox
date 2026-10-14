@@ -53,10 +53,7 @@ class Instance:
                     # lai chi tra ve dung cai entry hong do, nen thu bao nhieu lan
                     # cung ra 'device offline'. disconnect truoc de xoa entry, ep
                     # bat tay lai tu dau.
-                    try:
-                        adbutils.adb.disconnect(self.serial)
-                    except Exception:
-                        pass
+                    self._adb_forget()
                 adbutils.adb.connect(self.serial, timeout=5.0)
                 dev = adbutils.adb.device(self.serial)
                 # co timeout: khong thi mot thiet bi nua song nua chet treo o day
@@ -70,6 +67,13 @@ class Instance:
             f"Khong ket noi duoc ADB toi {self.serial}: {last}. "
             f"ADB dang thay: {self.list_adb_devices() or 'khong co gi'}"
         )
+
+    def _adb_forget(self) -> None:
+        """Xoa entry cua may nay khoi adb server, vd entry 'offline' dinh lai."""
+        try:
+            adbutils.adb.disconnect(self.serial)
+        except Exception:
+            pass
 
     @property
     def device(self) -> adbutils.AdbDevice:
@@ -146,6 +150,10 @@ class Instance:
         san sang tu lau ma lenh van tra ve chuoi rong, nen vong lap poll khong bao
         gio thoat va chi ket thuc bang TimeoutError. Hoi thang cong ADB bo qua
         duoc tang do.
+
+        Gap 'offline' thi disconnect roi moi thu lai, giong connect(): entry cua
+        lan bat truoc co the con dinh trong adb server, connect lai chi tra ve
+        dung entry hong do -> doi het timeout ma khong bao gio vao duoc.
         """
         deadline = time.monotonic() + timeout
         last: Exception | None = None
@@ -158,6 +166,8 @@ class Instance:
                     return
             except Exception as exc:  # cong chua mo, adb chua len, device offline...
                 last = exc
+                if "offline" in str(exc).lower():
+                    self._adb_forget()
             time.sleep(poll)
         raise TimeoutError(
             f"{self.serial} khong boot xong trong {timeout}s (loi cuoi: {last}). "
@@ -182,6 +192,9 @@ class Instance:
     def stop(self) -> None:
         self._device = None
         self.console.quit(self.index)
+        # Bo luon entry ADB: de lai thi no thanh 'offline' trong adb server, va
+        # lan bat sau wait_boot_adb dung phai dung entry hong do.
+        self._adb_forget()
 
     # ---------- thao tac co ban ----------
 
