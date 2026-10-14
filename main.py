@@ -9,6 +9,7 @@ dem so acc theo tung status. Dung tkinter (co san trong Python, khong cai them).
 from __future__ import annotations
 
 import json
+import math
 import os
 import queue
 import sqlite3
@@ -499,14 +500,48 @@ class App:
             anchor="w", padx=8, pady=(0, 4))
 
     def _build_log(self):
-        f = ttk.LabelFrame(self.root, text="Nhat ky")
-        f.pack(fill="both", expand=True, padx=8, pady=6)
-        self.txt = tk.Text(f, wrap="none", height=14, state="disabled",
-                           bg="#111", fg="#ddd", font=("Consolas", 9))
-        sb = ttk.Scrollbar(f, command=self.txt.yview)
-        self.txt.configure(yscrollcommand=sb.set)
+        # Luong cua tung may ao log co tien to "[index] " (Log o ldauto/flow.py)
+        # -> moi index mot khung rieng, tao luc gap dong dau tien cua index do.
+        # Dong khong co tien to so (main, print, traceback) vao khung chung.
+        self.log_area = ttk.Frame(self.root)
+        self.log_area.pack(fill="both", expand=True, padx=8, pady=6)
+        self.log_grid = ttk.Frame(self.log_area)   # pack khi co khung may dau tien
+        self.log_panes: dict[str, tk.Text] = {}
+        self.txt = self._log_box(self.log_area, "Nhat ky chung", height=14)
+        self.txt.master.pack(fill="both", expand=True)
+
+    def _log_box(self, parent, title: str, height: int) -> tk.Text:
+        """LabelFrame chua Text nen toi + thanh cuon doc. Tra ve Text."""
+        box = ttk.LabelFrame(parent, text=title)
+        # width=1: luoi chia deu theo cua so, khong bi dong log dai keo gian.
+        txt = tk.Text(box, wrap="word", width=1, height=height, state="disabled",
+                      bg="#111", fg="#ddd", font=("Consolas", 9))
+        sb = ttk.Scrollbar(box, command=txt.yview)
+        txt.configure(yscrollcommand=sb.set)
         sb.pack(side="right", fill="y")
-        self.txt.pack(side="left", fill="both", expand=True)
+        txt.pack(side="left", fill="both", expand=True)
+        return txt
+
+    def _log_pane(self, index: str) -> tk.Text:
+        """Khung log cua may `index`; chua co thi tao roi xep lai luoi."""
+        txt = self.log_panes.get(index)
+        if txt is not None:
+            return txt
+        if not self.log_panes:
+            # Khung may dau tien: khung chung lui xuong thanh mot dai thap o day.
+            self.txt.configure(height=4)
+            self.txt.master.pack_configure(side="bottom", fill="x", expand=False)
+            self.log_grid.pack(fill="both", expand=True, pady=(0, 4))
+        txt = self.log_panes[index] = self._log_box(self.log_grid, f"May {index}", height=8)
+        # Luoi gan vuong: 2 may -> 2x1, 4 -> 2x2, 6 -> 3x2, 9 -> 3x3.
+        indices = sorted(self.log_panes, key=int)
+        cols = math.isqrt(len(indices) - 1) + 1
+        for i, idx in enumerate(indices):
+            self.log_panes[idx].master.grid(row=i // cols, column=i % cols,
+                                            sticky="nsew", padx=2, pady=2)
+            self.log_grid.columnconfigure(i % cols, weight=1, uniform="log")
+            self.log_grid.rowconfigure(i // cols, weight=1, uniform="log")
+        return txt
 
     def _console(self):
         """Emulator dung theo duong dan dang nhap: memuc.exe -> MEmu, con lai LDPlayer."""
@@ -995,13 +1030,21 @@ class App:
         self.root.after(200, self._pump)
 
     def _append(self, line: str):
-        self.txt.config(state="normal")
-        self.txt.insert("end", line + "\n")
-        self.txt.see("end")
+        # "[3] abc" -> khung may 3, bo tien to; "[main] ..." / dong tron -> khung chung.
+        index, sep, rest = line[1:].partition("] ")
+        if line.startswith("[") and sep and index.isdigit():
+            self._write_log(self._log_pane(index), rest)
+        else:
+            self._write_log(self.txt, line)
+
+    def _write_log(self, txt: tk.Text, line: str):
+        txt.config(state="normal")
+        txt.insert("end", line + "\n")
+        txt.see("end")
         # gioi han ~1000 dong cho khoi phinh bo nho
-        if int(self.txt.index("end-1c").split(".")[0]) > 1000:
-            self.txt.delete("1.0", "200.0")
-        self.txt.config(state="disabled")
+        if int(txt.index("end-1c").split(".")[0]) > 1000:
+            txt.delete("1.0", "200.0")
+        txt.config(state="disabled")
 
     def _set_config_state(self, state: str):
         def walk(parent):
