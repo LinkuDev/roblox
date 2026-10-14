@@ -39,6 +39,9 @@ ROBLOX_PKG = "com.roblox.client"
 
 CPU, MEMORY, CPU_LIMIT = 2, 2048, 60
 STAGGER = 5                # giay giua moi may khi bat -- 4 may cung luc se nghen
+# Moi dot: bat HET may ao va doi tat ca san sang roi moi chay flow. Giay giua
+# cac may luc BAT DAU flow (sau khi da san sang het); 0 = cung luc.
+FLOW_STAGGER = 0
 AUTOCONNECT_WAIT = 30      # giay doi ExpressVPN tu noi lai truoc khi can thiep
 RESOLUTION = None          # None = giu nguyen theo may goc
 
@@ -725,7 +728,7 @@ def _debug_shot(inst: Instance, log: Log, folder: str, tag: str) -> None:
 
 
 def one_round(inst: Instance, log: Log) -> str | None:
-    """Mot vong: bat may ao -> VPN -> Roblox -> tao xong mot tai khoan.
+    """Mot vong tren may ao DA BAT SAN (pha 1 cua dot): VPN -> Roblox -> tao acc.
 
     Tra ve username vua tao, de nguoi goi ghi lai ket qua. Tra ve None khi acc
     vua sinh coi nhu chua tao duoc -- van con captcha sau Continue, hoac cookie
@@ -740,14 +743,8 @@ def one_round(inst: Instance, log: Log) -> str | None:
         log(f"{what} ({now - t0[0]:.0f}s)")
         t0[0] = now
 
-    # 1. bat may ao, doi Android san sang. May ao dang chay da duoc tat dong
-    #    loat o main() truoc khi vao day, nen cho nay chi con viec bat.
-    log("dang bat may ao...")
-    inst.start()
-    lap(f"san sang -> {inst.serial}")
-
-    # 1b. keo cua so ve o cua no (tach ra place_window de login dung chung).
-    place_window(inst, log)
+    # 1. Bat may ao va xep cua so da lam o pha 1-2 cua dot (run_farm): toan bo
+    #    may ao cua dot san sang roi moi vao day.
 
     # 2. VPN truoc, Roblox sau -- mo Roblox truoc thi no da bat dau noi mang
     #    bang IP that roi moi bi doi duong, de sinh loi ket noi giua chung.
@@ -959,12 +956,12 @@ def flow(inst: Instance, log: Log) -> None:
     Tat may sau moi vong: Roblox con giu phien dang nhap cua tai khoan vua
     tao -- dung tiep thi vong sau khong ra man dang ky nua.
     """
-    _gate(log)             # tam dung truoc khi bat may neu duoc yeu cau
-    if STOP.is_set():
-        return
     try:
-        one_round(inst, log)
+        _gate(log)         # tam dung truoc khi vao vong neu duoc yeu cau
+        if not STOP.is_set():
+            one_round(inst, log)
     finally:
+        # May ao da bat san tu pha 1, nen ke ca khi dung giua chung cung phai tat.
         # Tat may ao du vong vua roi thanh hay bai -- dot sau phai bat dau tu
         # may sach. Loi luc tat khong duoc de nuot mat loi that o tren.
         try:
@@ -975,6 +972,43 @@ def flow(inst: Instance, log: Log) -> None:
             inst.console.wait_stopped(inst.index, settle=0)
         except Exception as exc:
             log(f"tat may ao khong sach: {type(exc).__name__}: {exc}")
+
+
+def _boot(inst: Instance, log: Log) -> None:
+    """Pha 1 cua mot dot: bat may ao va doi Android san sang. Hong thi tat lai."""
+    _gate(log)
+    if STOP.is_set():
+        return
+    log("dang bat may ao...")
+    t0 = time.monotonic()
+    try:
+        inst.start()
+    except Exception:
+        try:
+            inst.stop()            # bat do dang -> tat cho dot sau bat lai sach
+        except Exception:
+            pass
+        raise
+    log(f"san sang -> {inst.serial} ({time.monotonic() - t0:.0f}s)")
+
+
+def _arrange(console: Emulator, ready: list[Instance]) -> None:
+    """Pha 2 cua mot dot: xep cua so MOT LAN khi ca dot da san sang.
+
+    MEmu: `memuc sortwin` -- chinh la nut xep cua so cua Multi-MEmu. LDPlayer:
+    keo tung cua so ve o cua no theo WINDOW_SLOT nhu truoc.
+    """
+    if not WINDOW_SLOT or not ready:       # arrange=False, hoac khong may nao len
+        return
+    if console.kind == "memu":
+        try:
+            console.sort_windows()
+            print(f"xep cua so {len(ready)} may ao bang memuc sortwin")
+        except Exception as exc:
+            print(f"xep cua so MEmu loi: {type(exc).__name__}: {exc}")
+        return
+    for inst in ready:
+        place_window(inst, Log(str(inst.index)))
 
 
 def build_instances(console: Emulator, sources: list[str] | None = None,
@@ -1104,8 +1138,21 @@ def run_farm(console: Emulator, *, sources: list[str] | None = None,
         done_before = STORE.count("done")
         print(f"\n===== DOT {n}" + (f"/{ROUNDS}" if ROUNDS else "")
               + f": bat {len(instances)} may ao =====")
-        results = run_parallel(instances, flow, trace=False,
-                               stagger=STAGGER if stagger is None else stagger)
+        # Pha 1: bat HET may ao cua dot (le nhau STAGGER giay), doi tat ca san sang.
+        boot = run_parallel(instances, _boot, trace=False,
+                            stagger=STAGGER if stagger is None else stagger)
+        ready = [inst for inst, r in zip(instances, boot) if r.ok]
+        failed = [r for r in boot if not r.ok]
+        print(f"dot {n}: {len(ready)}/{len(instances)} may ao san sang sau "
+              f"{time.monotonic() - t1:.0f}s"
+              + (f" -- bat hong, bo qua dot nay: {[r.index for r in failed]}" if failed else ""))
+        # Pha 2: xep cua so mot lan cho ca dot.
+        _arrange(console, ready)
+        # Pha 3: chay flow tren cac may da san sang. May bat hong tinh la hong.
+        # Van chay ca khi vua bam Dung: flow thay STOP thi bo vong nhung van TAT
+        # may -- khong thi may da bat o pha 1 bi bo do.
+        results = run_parallel(ready, flow, trace=False, stagger=FLOW_STAGGER) if ready else []
+        results += failed
         ok = sum(1 for r in results if r.ok)
         print(f"===== het dot {n} sau {time.monotonic() - t1:.0f}s: {ok}/{len(results)} "
               f"may chay het vong, them {STORE.count('done') - done_before} tai khoan "
