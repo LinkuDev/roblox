@@ -765,6 +765,8 @@ def one_round(inst: Instance, log: Log) -> str | None:
     # 1c. lop phu vi tri bam (xem SHOW_TAPS). Chi de debug: hong thi bo qua.
     try:
         inst.sh(f"settings put system pointer_location {int(SHOW_TAPS)}")
+        got = inst.sh("settings get system pointer_location").strip()
+        log(f"pointer_location = {got} (SHOW_TAPS={SHOW_TAPS})")
     except Exception as exc:
         log(f"khong dat duoc pointer_location ({type(exc).__name__}: {exc})")
 
