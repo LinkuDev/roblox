@@ -229,8 +229,10 @@ SIGNUP_CONTINUE_SPAM = (3, 4)    # so cu, random.randint
 SIGNUP_CONTINUE_SPAM_GAP = 0.2   # giay giua hai cu (khong nhan SLOW)
 SIGNUP_CONTINUE_SPAM_JITTER = 5  # +-px moi cu
 # Bam Continue lan cuoi xong: cho SIGNUP_CHECK_WAIT giay roi nhin man hinh. Con
-# captcha thi bo acc nay; khong thi vao luong nhap mat khau. Khong bam Back.
-SIGNUP_CHECK_WAIT = 10
+# captcha thi bo acc nay; khong thi bam Back cua he dieu hanh, cho
+# SIGNUP_AFTER_LAST_BACK giay roi moi vao luong nhap mat khau.
+SIGNUP_CHECK_WAIT = 25         # truoc: 10
+SIGNUP_AFTER_LAST_BACK = 5
 # Nhan ra captcha bang ANH (Roblox khong co widget tree): nut "Press and hold"
 # xanh navy cua man Security tai HOLD_BTN (xem duoi), HOAC nen trang phu nua
 # tren man hinh -- man Roblox o buoc nay, ke ca man mat khau, deu nen toi.
@@ -840,6 +842,12 @@ def one_round(inst: Instance, log: Log) -> str | None:
         STORE.delete(acc.username)
         lap("bo vong vi captcha")
         return None
+
+    # Khong co captcha: bam Back cua he dieu hanh (bam luon, khong nhin man hinh
+    # truoc), cho mot chut roi moi vao nhap mat khau.
+    log("bam Back cua he dieu hanh")
+    inst.back()
+    pause(SIGNUP_AFTER_LAST_BACK, log, "sau khi bam Back, truoc khi nhap mat khau")
 
     STORE.update(acc.username, gender=gender, status="username_set")
     lap(f"xong man dang ky ({acc.username})")
